@@ -91,7 +91,7 @@ interface TeamObjective {
 }
 
 interface Team {
-  team_id: number
+  teamId: number
   win: boolean
   objectives: TeamObjective
   bans: Array<{ champion_id: number }>

@@ -30,12 +30,12 @@ function getPositionColor(position: string): string {
   }
 
   const key = position.toUpperCase() as keyof typeof colors
-  console.log(`Position: ${position}`)
   return colors[key] || "text-gray-400"
 }
 
 function getPositionDisplay(position: string): string {
   const normalized = position.toUpperCase()
+  if (normalized === "MIDDLE") return "MID"
   if (normalized === "BOTTOM") return "ADC"
   if (normalized === "UTILITY") return "SUPPORT"
   return normalized
@@ -93,9 +93,6 @@ export default function Component() {
 
         <div className="space-y-6">
           {matches.map((match) => {
-            // Determine win based on teams data
-            const winningTeam = match.teams.find(team => team.win)
-            const isWin = winningTeam ? winningTeam.team_id === 100 : false
             
             // Filter players to only show those with mvp_score
             const playersWithMvp = match.players.filter(player => 
@@ -103,26 +100,31 @@ export default function Component() {
               player.mvp_score !== null && 
               player.mvp_score > 0
             )
+            let isWin = false
+            if (playersWithMvp.length > 0) {
+              const playerTeamId = playersWithMvp[0].team_id
+              const team = match.teams.find(t => t.teamId === playerTeamId)
+              isWin = team?.win === true
+            }
             const highestMvpScore = Math.max(...playersWithMvp.map(p => p.mvp_score ?? 0))
             
             return (
             <Card key={match.match_id} className="bg-gray-900 border-gray-800 shadow-xl">
-              <CardHeader className="pb-4">
+              <CardHeader className="pb-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="text-2xl">{isWin ? "🏆" : "💀"}</div>
                     <Badge
                       variant={isWin ? "default" : "destructive"}
-                      className={`text-sm font-bold ${
+                      className={`text-sm font-bold px-3 py-1 ${
                         isWin
-                          ? "bg-violet-600 hover:bg-violet-700 text-white"
+                          ? "bg-green-600 hover:bg-green-700 text-white"
                           : "bg-red-600 hover:bg-red-700 text-white"
                       }`}
                     >
-                      {isWin ? "VICTORIA" : "DERROTA"}
+                      {isWin ? "🏆 VICTORIA" : "💀 DERROTA"}
                     </Badge>
                   </div>
-                  <div className="text-gray-400 text-sm">{formatDuration(match.game_duration_seconds)}</div>
+                  <div className="text-gray-400 text-lg">{formatDuration(match.game_duration_seconds)}</div>
                 </div>
               </CardHeader>
 
@@ -132,7 +134,6 @@ export default function Component() {
                   {playersWithMvp.length > 0 ? (
                     <div className="space-y-1">
                       {(() => {
-                        console.log(`Rendering ${playersWithMvp.length} players with MVP scores`)
                         return playersWithMvp.map((player, index) => (
                           <div
                             key={index}
@@ -150,9 +151,7 @@ export default function Component() {
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-white font-medium truncate">{player.summoner_name}</span>
                                 {(() => {
-                                  console.log(`Player ${player.summoner_name} position: "${player.position}"`)
                                   const colorClass = getPositionColor(player.position)
-                                  console.log(`Color class for ${player.position}: ${colorClass}`)
                                   return (
                                     <span className={`text-xs font-medium uppercase ${colorClass}`}>
                                       {getPositionDisplay(player.position)}
