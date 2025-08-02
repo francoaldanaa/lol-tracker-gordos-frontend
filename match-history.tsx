@@ -43,6 +43,49 @@ function getPositionDisplay(position: string): string {
   return normalized
 }
 
+function getGameType(queueId: number): string {
+  // Common queue IDs for League of Legends
+  const queueTypes: { [key: number]: string } = {
+    400: "NORMAL", // Normal Draft Pick
+    420: "RANKED Duo", // Ranked Solo/Duo
+    430: "NORMAL", // Normal Blind Pick
+    440: "RANKED Flex", // Ranked Flex
+    450: "ARAM",   // ARAM
+    700: "NORMAL", // Clash
+    900: "NORMAL", // URF
+    1020: "NORMAL", // One for All
+    1300: "NORMAL", // Nexus Blitz
+    1400: "NORMAL", // Ultimate Spellbook
+  }
+  return queueTypes[queueId] || "NORMAL"
+}
+
+function formatMatchDate(timestamp: string): string {
+  const matchDate = new Date(timestamp)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const matchDay = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate())
+  
+  const timeString = matchDate.toLocaleTimeString('es-ES', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    hour12: false 
+  })
+  
+  if (matchDay.getTime() === today.getTime()) {
+    return `Hoy ${timeString}`
+  } else if (matchDay.getTime() === yesterday.getTime()) {
+    return `Ayer ${timeString}`
+  } else {
+    return `${matchDate.toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: '2-digit' 
+    })} ${timeString}`
+  }
+}
+
 
 export default function Component() {
   const { matches, loading, error, refetch } = useMatches(10)
@@ -137,6 +180,15 @@ export default function Component() {
                     >
                       {isWin ? "🏆 VICTORIA" : "💀 DERROTA"}
                     </Badge>
+                    <Badge
+                      variant="outline"
+                      className="text-sm font-bold px-3 py-1 bg-gray-800 border-gray-600 text-gray-300"
+                    >
+                      {getGameType(match.queue_id)}
+                    </Badge>
+                    <span className="text-gray-400 text-sm">
+                      {formatMatchDate(match.timestamp)}
+                    </span>
                   </div>
                   <div className="text-gray-400 text-lg">{formatDuration(match.game_duration_seconds)}</div>
                 </div>
@@ -144,7 +196,7 @@ export default function Component() {
 
               <CardContent className="pt-0">
                 <div className="space-y-1">
-                                    {/* Show only players with MVP scores */}
+                  {/* Show only players with MVP scores */}
                   {playersWithMvp.length > 0 ? (
                     <div className="space-y-1">
                       {(() => {
@@ -155,11 +207,15 @@ export default function Component() {
                             onClick={() => handlePlayerClick(player.puuid)}
                           >
                             <div className="w-10 h-10 rounded bg-gray-700 flex items-center justify-center overflow-hidden">
-                              <img
-                                src={`/placeholder.svg?height=40&width=40&text=${player.champion_name}`}
-                                alt={player.champion_name}
-                                className="w-full h-full object-cover"
-                              />
+                            <img
+                              src={`/assets/img/champion/${player.champion_name}.png`}
+                              onError={(e) => {
+                                e.currentTarget.onerror = null // Prevent infinite loop
+                                e.currentTarget.src = `/placeholder.svg?height=40&width=40&text=${player.champion_name}`
+                              }}
+                              alt={player.champion_name}
+                              className="w-full h-full object-cover"
+                            />
                             </div>
 
                             <div className="flex-1 min-w-0">
