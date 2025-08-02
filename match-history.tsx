@@ -209,7 +209,11 @@ export default function Component() {
                             <div className="w-10 h-10 rounded bg-gray-700 flex items-center justify-center overflow-hidden">
                             <img
                               src={`/assets/img/champion/${player.champion_name}.png`}
+                              onLoad={() => {
+                                console.log(`✅ Champion image found: /assets/img/champion/${player.champion_name}.png`)
+                              }}
                               onError={(e) => {
+                                console.log(`❌ Champion image not found: /assets/img/champion/${player.champion_name}.png`)
                                 e.currentTarget.onerror = null // Prevent infinite loop
                                 e.currentTarget.src = `/placeholder.svg?height=40&width=40&text=${player.champion_name}`
                               }}
