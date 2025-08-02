@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '10')
     const matchId = searchParams.get('matchId')
+    const playerPuuid = searchParams.get('playerPuuid')
     
     let matches
     
@@ -20,6 +21,9 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Match not found' }, { status: 404 })
       }
       matches = [match]
+    } else if (playerPuuid) {
+      // Get matches by player PUUID
+      matches = await mongodbService.getMatchesByPlayerPuuid(playerPuuid)
     } else {
       // Get recent matches with summoner information
       matches = await mongodbService.getRecentMatchesWithSummoners(limit)

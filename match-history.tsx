@@ -1,10 +1,12 @@
 "use client"
 
+import { useState } from 'react'
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useMatches } from "@/hooks/use-matches"
 import { Match, MatchPlayer } from "@/lib/mongodb"
+import PlayerProfileModal from "@/components/player-profile-modal"
 
 function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60)
@@ -44,6 +46,18 @@ function getPositionDisplay(position: string): string {
 
 export default function Component() {
   const { matches, loading, error, refetch } = useMatches(10)
+  const [selectedPlayerPuuid, setSelectedPlayerPuuid] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const handlePlayerClick = (puuid: string) => {
+    setSelectedPlayerPuuid(puuid)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedPlayerPuuid(null)
+  }
 
   if (loading) {
     return (
@@ -137,7 +151,8 @@ export default function Component() {
                         return playersWithMvp.map((player, index) => (
                           <div
                             key={index}
-                            className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors"
+                            className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors cursor-pointer"
+                            onClick={() => handlePlayerClick(player.puuid)}
                           >
                             <div className="w-10 h-10 rounded bg-gray-700 flex items-center justify-center overflow-hidden">
                               <img
@@ -217,6 +232,12 @@ export default function Component() {
           })}
         </div>
       </div>
+
+      <PlayerProfileModal
+        puuid={selectedPlayerPuuid}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
     </div>
   )
 }

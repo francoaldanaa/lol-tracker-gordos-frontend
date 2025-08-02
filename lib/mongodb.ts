@@ -242,6 +242,269 @@ class MongoDBService {
       throw error
     }
   }
+
+  async getMatchesByPlayerPuuid(puuid: string): Promise<Match[]> {
+    if (!this.db) {
+      throw new Error('Database not connected. Call connect() first.')
+    }
+
+    try {
+      const collection = this.db.collection('matches')
+      const matches = await collection
+        .find({
+          'players.puuid': puuid
+        })
+        .sort({ timestamp: -1 })
+        .toArray()
+
+      // Fetch summoner information for all players
+      const matchesWithSummoners = await Promise.all(
+        (matches as unknown as Match[]).map(async (match) => {
+          const playersWithSummoners = await Promise.all(
+            match.players.map(async (player) => {
+              const summoner = await this.getSummonerByPuuid(player.puuid)
+              return {
+                ...player,
+                summoner_name: summoner?.summoner_name || player.summoner_name,
+                real_name: summoner?.real_name || player.real_name
+              }
+            })
+          )
+          return {
+            ...match,
+            players: playersWithSummoners
+          }
+        })
+      )
+
+      return matchesWithSummoners
+    } catch (error) {
+      console.error('Failed to fetch matches by player PUUID:', error)
+      throw error
+    }
+  }
+
+  async getPlayerProfile(puuid: string): Promise<{
+    puuid: string
+    summoner_name: string
+    real_name: string
+    total_matches: number
+    wins: number
+    losses: number
+    win_rate: number
+    average_kills: number
+    average_deaths: number
+    average_assists: number
+    average_mvp_score: number
+    average_damage_dealt: number
+    average_damage_to_champions: number
+    average_gold_earned: number
+    average_vision_score: number
+    average_wards_placed: number
+    average_wards_killed: number
+    most_played_champions: Array<{ champion: string; games: number }>
+    most_played_positions: Array<{ position: string; games: number }>
+    teammates_stats: Array<{
+      puuid: string
+      summoner_name: string
+      real_name: string
+      games_played: number
+      wins: number
+      losses: number
+      win_rate: number
+      average_kills: number
+      average_deaths: number
+      average_assists: number
+      average_mvp_score: number
+    }>
+    recent_matches: Match[]
+  } | null> {
+    if (!this.db) {
+      throw new Error('Database not connected. Call connect() first.')
+    }
+
+    try {
+      const collection = this.db.collection('matches')
+      const matches = await collection
+        .find({
+          'players.puuid': puuid
+        })
+        .sort({ timestamp: -1 })
+        .toArray()
+
+      if (matches.length === 0) {
+        return null
+      }
+
+      // Get summoner information
+      const summoner = await this.getSummonerByPuuid(puuid)
+
+      // Calculate statistics from all matches
+      const playerMatches = (matches as unknown as Match[]).map(match => {
+        const player = match.players.find(p => p.puuid === puuid)
+        return { match, player }
+      }).filter(item => item.player)
+
+      const totalMatches = playerMatches.length
+      const wins = playerMatches.filter(item => {
+        const team = item.match.teams.find(t => t.teamId === item.player?.team_id)
+        return team?.win === true
+      }).length
+      const losses = totalMatches - wins
+      const winRate = totalMatches > 0 ? (wins / totalMatches) * 100 : 0
+
+      // Calculate averages
+      const averages = playerMatches.reduce((acc, item) => {
+        const player = item.player!
+        return {
+          kills: acc.kills + player.kills,
+          deaths: acc.deaths + player.deaths,
+          assists: acc.assists + player.assists,
+          mvp_score: acc.mvp_score + (player.mvp_score || 0),
+          damage_dealt: acc.damage_dealt + player.total_dmg_dealt,
+          damage_to_champions: acc.damage_to_champions + player.total_dmg_dealt_champions,
+          gold_earned: acc.gold_earned + player.gold_earned,
+          vision_score: acc.vision_score + player.vision_score,
+          wards_placed: acc.wards_placed + player.wards_placed,
+          wards_killed: acc.wards_killed + player.wards_killed
+        }
+      }, {
+        kills: 0, deaths: 0, assists: 0, mvp_score: 0,
+        damage_dealt: 0, damage_to_champions: 0, gold_earned: 0,
+        vision_score: 0, wards_placed: 0, wards_killed: 0
+      })
+
+      // Calculate most played champions and positions
+      const championCounts: { [key: string]: number } = {}
+      const positionCounts: { [key: string]: number } = {}
+
+      playerMatches.forEach(item => {
+        const player = item.player!
+        const champion = player.champion_name
+        const position = player.position
+        championCounts[champion] = (championCounts[champion] || 0) + 1
+        positionCounts[position] = (positionCounts[position] || 0) + 1
+      })
+
+      const mostPlayedChampions = Object.entries(championCounts)
+        .map(([champion, games]) => ({ champion, games }))
+        .sort((a, b) => b.games - a.games)
+        .slice(0, 5)
+
+      const mostPlayedPositions = Object.entries(positionCounts)
+        .map(([position, games]) => ({ position, games }))
+        .sort((a, b) => b.games - a.games)
+
+      // Calculate teammates statistics
+      const teammatesStats: { [puuid: string]: {
+        puuid: string
+        summoner_name: string
+        real_name: string
+        games_played: number
+        wins: number
+        losses: number
+        total_kills: number
+        total_deaths: number
+        total_assists: number
+        total_mvp_score: number
+      } } = {}
+
+      // Get all summoners from the database
+      const summonersCollection = this.db.collection('summoners')
+      const allSummoners = await summonersCollection.find({}).toArray() as unknown as Summoner[]
+      const summonerPuuidSet = new Set(allSummoners.map(s => s.puuid))
+
+      // Analyze each match to find teammates
+      playerMatches.forEach(item => {
+        const match = item.match
+        const player = item.player!
+        
+        // Find all players in this match who are also in the summoners collection
+        match.players.forEach(matchPlayer => {
+          if (matchPlayer.puuid !== puuid && summonerPuuidSet.has(matchPlayer.puuid)) {
+            if (!teammatesStats[matchPlayer.puuid]) {
+              const teammateSummoner = allSummoners.find(s => s.puuid === matchPlayer.puuid)
+              teammatesStats[matchPlayer.puuid] = {
+                puuid: matchPlayer.puuid,
+                summoner_name: teammateSummoner?.summoner_name || matchPlayer.summoner_name || 'Unknown',
+                real_name: teammateSummoner?.real_name || matchPlayer.real_name || 'Unknown',
+                games_played: 0,
+                wins: 0,
+                losses: 0,
+                total_kills: 0,
+                total_deaths: 0,
+                total_assists: 0,
+                total_mvp_score: 0
+              }
+            }
+
+            const teammateStats = teammatesStats[matchPlayer.puuid]
+            teammateStats.games_played++
+
+            // Check if they were on the same team
+            const isSameTeam = matchPlayer.team_id === player.team_id
+            const team = match.teams.find(t => t.teamId === player.team_id)
+            const isWin = team?.win === true
+
+            if (isSameTeam) {
+              if (isWin) {
+                teammateStats.wins++
+              } else {
+                teammateStats.losses++
+              }
+            }
+
+            teammateStats.total_kills += matchPlayer.kills
+            teammateStats.total_deaths += matchPlayer.deaths
+            teammateStats.total_assists += matchPlayer.assists
+            teammateStats.total_mvp_score += matchPlayer.mvp_score || 0
+          }
+        })
+      })
+
+      // Convert to array and calculate averages
+      const teammatesStatsArray = Object.values(teammatesStats).map(stats => ({
+        puuid: stats.puuid,
+        summoner_name: stats.summoner_name,
+        real_name: stats.real_name,
+        games_played: stats.games_played,
+        wins: stats.wins,
+        losses: stats.losses,
+        win_rate: stats.games_played > 0 ? (stats.wins / stats.games_played) * 100 : 0,
+        average_kills: stats.games_played > 0 ? stats.total_kills / stats.games_played : 0,
+        average_deaths: stats.games_played > 0 ? stats.total_deaths / stats.games_played : 0,
+        average_assists: stats.games_played > 0 ? stats.total_assists / stats.games_played : 0,
+        average_mvp_score: stats.games_played > 0 ? stats.total_mvp_score / stats.games_played : 0
+      })).sort((a, b) => b.games_played - a.games_played)
+
+      return {
+        puuid,
+        summoner_name: summoner?.summoner_name || 'Unknown',
+        real_name: summoner?.real_name || 'Unknown',
+        total_matches: totalMatches,
+        wins,
+        losses,
+        win_rate: winRate,
+        average_kills: averages.kills / totalMatches,
+        average_deaths: averages.deaths / totalMatches,
+        average_assists: averages.assists / totalMatches,
+        average_mvp_score: averages.mvp_score / totalMatches,
+        average_damage_dealt: averages.damage_dealt / totalMatches,
+        average_damage_to_champions: averages.damage_to_champions / totalMatches,
+        average_gold_earned: averages.gold_earned / totalMatches,
+        average_vision_score: averages.vision_score / totalMatches,
+        average_wards_placed: averages.wards_placed / totalMatches,
+        average_wards_killed: averages.wards_killed / totalMatches,
+        most_played_champions: mostPlayedChampions,
+        most_played_positions: mostPlayedPositions,
+        teammates_stats: teammatesStatsArray,
+        recent_matches: playerMatches.slice(0, 5).map(item => item.match)
+      }
+    } catch (error) {
+      console.error('Failed to fetch player profile:', error)
+      throw error
+    }
+  }
 }
 
 // Default configuration - you can override these values
