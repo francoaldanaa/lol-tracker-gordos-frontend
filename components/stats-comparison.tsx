@@ -10,6 +10,7 @@ interface StatsComparisonProps {
   highlightedSummonerName?: string | null
   selectedStat?: string
   onStatChange?: (stat: string) => void
+  onPlayerClick?: (summonerName: string) => void
 }
 
 function getPlayerName(player: MatchPlayer): string {
@@ -52,7 +53,8 @@ export default function StatsComparison({
   players, 
   highlightedSummonerName,
   selectedStat = 'damage',
-  onStatChange
+  onStatChange,
+  onPlayerClick
 }: StatsComparisonProps) {
   const [currentStat, setCurrentStat] = useState(selectedStat)
 
@@ -74,13 +76,12 @@ export default function StatsComparison({
 
   // Update currentStat when selectedStat prop changes (from external sources like clicking filterable stats)
   useEffect(() => {
-    if (selectedStat && selectedStat !== currentStat) {
-      setCurrentStat(selectedStat)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('statsComparisonStat', selectedStat)
-      }
+    const newStat = selectedStat || 'damage'
+    setCurrentStat(newStat)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('statsComparisonStat', newStat)
     }
-  }, [selectedStat, currentStat])
+  }, [selectedStat])
 
   const handleStatChange = (newStat: string) => {
     setCurrentStat(newStat)
@@ -147,9 +148,9 @@ export default function StatsComparison({
             }
             
             return (
-              <div key={index} className="flex flex-col items-center gap-2 flex-1 max-w-16">
+              <div key={index} className="flex flex-col items-center gap-2 flex-1" style={{ maxWidth: 'calc(5rem - 8px)', marginLeft: index > 0 ? '4px' : '0', marginRight: '4px' }}>
                 {/* Bar */}
-                <div className="relative w-full h-48 flex items-end bg-gray-800 rounded border border-gray-700 group">
+                <div className="relative h-48 flex items-end bg-gray-800 rounded border border-gray-700 group/bar cursor-pointer" style={{ width: 'calc(100% - 8px)' }} onClick={() => onPlayerClick?.(player.summoner_name || '')}>
                   <div 
                     className={`w-full transition-all duration-300 rounded-t min-h-[8px] ${
                       barColor
@@ -159,14 +160,19 @@ export default function StatsComparison({
                     style={{ height: `${Math.max(heightPercentage, 5)}%` }}
                   >
                     {/* Tooltip */}
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover/bar:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
                       {formatTooltipValue(value, currentStat)}
                     </div>
                   </div>
                 </div>
                 
+                {/* Value */}
+                <div className="text-xs text-white font-medium">
+                  {formatTooltipValue(value, currentStat)}
+                </div>
+                
                 {/* Champion image */}
-                <div className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <div className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0 relative hover-tooltip-container" onMouseEnter={() => console.log('Champion hover entered:', player.champion_name)} onMouseLeave={() => console.log('Champion hover left:', player.champion_name)}>
                   <img
                     src={`/assets/img/champion/${player.champion_name}.png`}
                     onError={(e) => {
@@ -176,16 +182,26 @@ export default function StatsComparison({
                     alt={player.champion_name}
                     className="w-full h-full object-cover"
                   />
+                  {/* Champion name tooltip */}
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50 pointer-events-none tooltip">
+                    {player.champion_name}
+                  </div>
+                  <style jsx>{`
+                    .hover-tooltip-container:hover .tooltip {
+                      opacity: 1 !important;
+                    }
+                  `}</style>
                 </div>
                 
                 {/* Player name */}
-                <div className="text-xs text-gray-400 text-center truncate w-full">
-                  {getPlayerName(player)}
-                </div>
-                
-                {/* Value */}
-                <div className="text-xs text-white font-medium">
-                  {value.toLocaleString()}
+                <div className="text-xs text-gray-400 text-center w-full group/summoner relative">
+                  <div className="truncate">
+                    {getPlayerName(player)}
+                  </div>
+                  {/* Summoner name tooltip */}
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover/summoner:opacity-100 transition-opacity duration-200 whitespace-nowrap z-15 pointer-events-none">
+                    {getPlayerName(player)}
+                  </div>
                 </div>
               </div>
             )

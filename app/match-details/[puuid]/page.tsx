@@ -115,7 +115,12 @@ export default function MatchDetailsPage() {
 
   const handlePlayerSelect = (matchId: string, summonerName: string) => {
     // Update local state instead of URL to prevent scrolling
-    setHighlightedSummonerName(summonerName);
+    // If summonerName is empty, clear the highlight
+    setHighlightedSummonerName(summonerName || null);
+  }
+
+  const handlePlayerClick = (summonerName: string) => {
+    handlePlayerSelect(match?.match_id || '', summonerName);
   }
 
   const handleProfileClick = (puuid: string, event: React.MouseEvent) => {
@@ -243,12 +248,20 @@ export default function MatchDetailsPage() {
         </Card>
 
         {/* Stats Comparison */}
-        <StatsComparison
-          players={match.players}
-          highlightedSummonerName={highlightedSummonerName}
-          selectedStat={selectedStat}
-          onStatChange={setSelectedStat}
-        />
+        <Card className="bg-gray-900 border-gray-800 py-6">
+          <CardHeader>
+            <CardTitle className="text-white">Equipo Azul vs Equipo Rojo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <StatsComparison
+              players={match.players}
+              highlightedSummonerName={highlightedSummonerName}
+              selectedStat={selectedStat}
+              onStatChange={setSelectedStat}
+              onPlayerClick={handlePlayerClick}
+            />
+          </CardContent>
+        </Card>
 
         {/* Team 2 (Red) */}
         <Card className="bg-gray-900 border-gray-800">

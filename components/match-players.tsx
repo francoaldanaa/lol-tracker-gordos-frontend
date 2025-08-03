@@ -88,6 +88,7 @@ function StatRow({ label, value, selectedStat, onStatChange }: {
   
   const handleClick = () => {
     if (isFilterable && statKey && onStatChange) {
+      // Always set the filter to this stat when clicked, no toggle functionality
       onStatChange(statKey)
     }
   }
@@ -139,7 +140,13 @@ export default function MatchPlayers({
 
   const handlePlayerClick = (player: MatchPlayer) => {
     if (onPlayerClick && matchId && player.mvp_score !== undefined && player.mvp_score > 0) {
-      onPlayerClick(matchId, player.summoner_name || '')
+      // Toggle functionality: if this player is already highlighted, unhighlight them
+      const summonerName = player.summoner_name || ''
+      if (highlightedSummonerName === summonerName) {
+        onPlayerClick(matchId, '') // Clear highlight by passing empty string
+      } else {
+        onPlayerClick(matchId, summonerName) // Set highlight
+      }
     }
   }
 
@@ -299,7 +306,7 @@ export default function MatchPlayers({
                         <div className="space-y-1 text-sm">
                           <StatRow 
                             label="Oro Ganado" 
-                            value={`${(player.gold_earned / 1000).toFixed(3)}💰 (${Math.round(player.gold_earned / (match?.game_duration_seconds / 60))}/m)`}
+                            value={`${(player.gold_earned / 1000).toFixed(3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
@@ -518,7 +525,7 @@ export default function MatchPlayers({
                         <div className="space-y-1 text-sm">
                           <StatRow 
                             label="Oro ganado" 
-                            value={`${(player.gold_earned / 1000).toFixed(3)}💰 (${Math.round(player.gold_earned / (match?.game_duration_seconds / 60))}/m)`}
+                            value={`${(player.gold_earned / 1000).toFixed(3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
@@ -743,7 +750,7 @@ export default function MatchPlayers({
                         <div className="space-y-1 text-sm">
                           <StatRow 
                             label="Oro Ganado" 
-                            value={`${(player.gold_earned / 1000).toFixed(3)}💰 (${Math.round(player.gold_earned / (match?.game_duration_seconds / 60))}/m)`}
+                            value={`${(player.gold_earned / 1000).toFixed(3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />

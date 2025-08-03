@@ -176,11 +176,6 @@ export default function ProfilePage() {
               <CardTitle className="text-white flex items-center gap-3">
                 <Users className="h-6 w-6" />
                 {profile.summoner_name}
-                {profile.real_name !== 'Unknown' && (
-                  <Badge variant="secondary" className="text-xs">
-                    {profile.real_name}
-                  </Badge>
-                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -296,12 +291,20 @@ export default function ProfilePage() {
                 {profile.most_played_champions.map((champ, index) => (
                   <div key={champ.champion} className="flex items-center justify-between p-2 bg-gray-700 rounded">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded bg-gray-600 flex items-center justify-center">
-                        <span className="text-xs text-white">{champ.champion}</span>
+                      <div className="w-8 h-8 rounded bg-gray-600 flex items-center justify-center overflow-hidden">
+                        <img
+                          src={`/assets/img/champion/${champ.champion}.png`}
+                          onError={(e) => {
+                            e.currentTarget.onerror = null
+                            e.currentTarget.src = `/placeholder.svg?height=32&width=32&text=${champ.champion}`
+                          }}
+                          alt={champ.champion}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                       <span className="text-white font-medium">{champ.champion}</span>
                     </div>
-                    <Badge variant="secondary">{champ.games} partidas</Badge>
+                    <span className="text-gray-300 text-sm">{champ.games} partidas</span>
                   </div>
                 ))}
               </div>
@@ -348,11 +351,6 @@ export default function ProfilePage() {
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-white font-medium">{teammate.summoner_name}</span>
-                          {teammate.real_name !== 'Unknown' && (
-                            <Badge variant="outline" className="text-xs">
-                              {teammate.real_name}
-                            </Badge>
-                          )}
                         </div>
                         <div className="text-right">
                           <div className="text-sm text-gray-400">{teammate.games_played} partidas</div>
@@ -394,4 +392,4 @@ export default function ProfilePage() {
       </div>
     </div>
   )
-} 
+}
