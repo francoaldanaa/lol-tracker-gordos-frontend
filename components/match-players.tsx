@@ -312,7 +312,7 @@ export default function MatchPlayers({
                           />
                           <StatRow 
                             label="Daño Total" 
-                            value={`${(player.total_dmg_dealt_champions / 1000).toFixed(3)}💰`}
+                            value={`${(player.total_dmg_dealt_champions / 1000).toFixed(3)}⚔️`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
