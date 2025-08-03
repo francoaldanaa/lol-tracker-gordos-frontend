@@ -20,6 +20,7 @@ interface MatchPlayer {
   puuid: string
   summoner_name: string
   real_name: string
+  riot_id_game_name?: string
   champion_name: string
   champion_id: number
   champion_level: number
@@ -112,12 +113,37 @@ class MongoDBService {
   private client: MongoClient | null = null
   private db: Db | null = null
   private config: MongoDBConfig
+  private isConnecting: boolean = false
+  private connectionPromise: Promise<void> | null = null
 
   constructor(config: MongoDBConfig) {
     this.config = config
   }
 
   async connect(): Promise<void> {
+    // If already connected, return
+    if (this.db) {
+      return
+    }
+
+    // If already connecting, wait for the connection
+    if (this.isConnecting && this.connectionPromise) {
+      return this.connectionPromise
+    }
+
+    // Start connection process
+    this.isConnecting = true
+    this.connectionPromise = this._connect()
+
+    try {
+      await this.connectionPromise
+    } finally {
+      this.isConnecting = false
+      this.connectionPromise = null
+    }
+  }
+
+  private async _connect(): Promise<void> {
     try {
       // Properly encode username and password to handle special characters
       const encodedUsername = encodeURIComponent(this.config.username)
@@ -133,23 +159,36 @@ class MongoDBService {
         }
       )
       
-      this.client = new MongoClient(connectionString)
-      await this.client.connect()
+      this.client = new MongoClient(connectionString, {
+        maxPoolSize: 10,
+        minPoolSize: 1,
+        maxIdleTimeMS: 30000,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+      })
       
+      await this.client.connect()
       this.db = this.client.db(this.config.database)
       console.log('Connected to MongoDB successfully')
     } catch (error) {
       console.error('Failed to connect to MongoDB:', error)
+      this.client = null
+      this.db = null
       throw error
     }
   }
 
   async disconnect(): Promise<void> {
     if (this.client) {
-      await this.client.close()
-      this.client = null
-      this.db = null
-      console.log('Disconnected from MongoDB')
+      try {
+        await this.client.close()
+        console.log('Disconnected from MongoDB')
+      } catch (error) {
+        console.error('Error disconnecting from MongoDB:', error)
+      } finally {
+        this.client = null
+        this.db = null
+      }
     }
   }
 
@@ -199,6 +238,41 @@ class MongoDBService {
       return match as Match | null
     } catch (error) {
       console.error('Failed to fetch match:', error)
+      throw error
+    }
+  }
+
+  async getMatchByIdWithSummoners(matchId: string): Promise<Match | null> {
+    if (!this.db) {
+      throw new Error('Database not connected. Call connect() first.')
+    }
+
+    try {
+      const collection = this.db.collection('matches')
+      const match = await collection.findOne({ match_id: matchId })
+      
+      if (!match) {
+        return null
+      }
+
+      // Fetch summoner information for all players
+      const playersWithSummoners = await Promise.all(
+        (match as unknown as Match).players.map(async (player) => {
+          const summoner = await this.getSummonerByPuuid(player.puuid)
+          return {
+            ...player,
+            summoner_name: summoner?.summoner_name || player.summoner_name,
+            real_name: summoner?.real_name || player.real_name
+          }
+        })
+      )
+
+      return {
+        ...(match as unknown as Match),
+        players: playersWithSummoners
+      }
+    } catch (error) {
+      console.error('Failed to fetch match with summoners:', error)
       throw error
     }
   }
@@ -517,4 +591,4 @@ const defaultConfig: MongoDBConfig = {
 }
 
 export const mongodbService = new MongoDBService(defaultConfig)
-export type { Match, MatchPlayer, Team, TeamObjective, MongoDBConfig, Summoner } 
+export type { Match, MatchPlayer, Team, TeamObjective, MongoDBConfig, Summoner }

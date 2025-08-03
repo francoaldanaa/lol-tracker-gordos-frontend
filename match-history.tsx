@@ -1,46 +1,18 @@
 "use client"
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useMatches } from "@/hooks/use-matches"
 import { Match, MatchPlayer } from "@/lib/mongodb"
-import PlayerProfileModal from "@/components/player-profile-modal"
+import MatchPlayers from "@/components/match-players"
 
 function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`
-}
-
-function formatGold(gold: number): string {
-  return `${(gold / 1000).toFixed(1)}k`
-}
-
-function formatDamage(damage: number): string {
-  return `${(damage / 1000).toFixed(1)}k`
-}
-
-function getPositionColor(position: string): string {
-  const colors = {
-    TOP: "text-red-400",
-    JUNGLE: "text-green-400",
-    MIDDLE: "text-blue-400",
-    BOTTOM: "text-yellow-400",
-    UTILITY: "text-purple-400",
-  }
-
-  const key = position.toUpperCase() as keyof typeof colors
-  return colors[key] || "text-gray-400"
-}
-
-function getPositionDisplay(position: string): string {
-  const normalized = position.toUpperCase()
-  if (normalized === "MIDDLE") return "MID"
-  if (normalized === "BOTTOM") return "ADC"
-  if (normalized === "UTILITY") return "SUPPORT"
-  return normalized
 }
 
 function getGameType(queueId: number): string {
@@ -87,19 +59,26 @@ function formatMatchDate(timestamp: string): string {
 }
 
 
+
+
 export default function Component() {
   const { matches, loading, error, refetch } = useMatches(10)
-  const [selectedPlayerPuuid, setSelectedPlayerPuuid] = useState<string | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const router = useRouter()
+  const [selectedStat, setSelectedStat] = useState('damage')
 
-  const handlePlayerClick = (puuid: string) => {
-    setSelectedPlayerPuuid(puuid)
-    setIsModalOpen(true)
+  // Handle click on the player row - navigates to match-details with match_id
+  const handleRowClick = (player: MatchPlayer, matchId: string) => {
+    if (player.summoner_name) {
+      // Store the summoner_name in sessionStorage before navigation
+      sessionStorage.setItem('highlightedSummonerName', player.summoner_name)
+      router.push(`/match-details/${matchId}`)
+    }
   }
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false)
-    setSelectedPlayerPuuid(null)
+  // Handle click on profile icon or summoner name - navigates to profile page
+  const handleProfileClick = (puuid: string, event: React.MouseEvent) => {
+    event.stopPropagation() // Prevent row click from triggering
+    router.push(`/profile/${puuid}`)
   }
 
   if (loading) {
@@ -194,110 +173,28 @@ export default function Component() {
                 </div>
               </CardHeader>
 
-              <CardContent className="pt-0">
-                <div className="space-y-1">
-                  {/* Show only players with MVP scores */}
-                  {playersWithMvp.length > 0 ? (
-                    <div className="space-y-1">
-                      {(() => {
-                        return playersWithMvp.map((player, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors cursor-pointer"
-                            onClick={() => handlePlayerClick(player.puuid)}
-                          >
-                            <div className="w-10 h-10 rounded bg-gray-700 flex items-center justify-center overflow-hidden">
-                            <img
-                              src={`/assets/img/champion/${player.champion_name}.png`}
-                              onLoad={() => {
-                                console.log(`✅ Champion image found: /assets/img/champion/${player.champion_name}.png`)
-                              }}
-                              onError={(e) => {
-                                console.log(`❌ Champion image not found: /assets/img/champion/${player.champion_name}.png`)
-                                e.currentTarget.onerror = null // Prevent infinite loop
-                                e.currentTarget.src = `/placeholder.svg?height=40&width=40&text=${player.champion_name}`
-                              }}
-                              alt={player.champion_name}
-                              className="w-full h-full object-cover"
-                            />
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-white font-medium truncate">{player.summoner_name}</span>
-                                {(() => {
-                                  const colorClass = getPositionColor(player.position)
-                                  return (
-                                    <span className={`text-xs font-medium uppercase ${colorClass}`}>
-                                      {getPositionDisplay(player.position)}
-                                    </span>
-                                  )
-                                })()}
-                                {player.mvp_score !== undefined && (
-                                  <>
-                                    <Badge className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-2 py-0.5 h-5">
-                                      {player.mvp_score.toFixed(2)}
-                                    </Badge>
-                                    {player.mvp_score === highestMvpScore && (
-                                      <Badge className="bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 h-5">
-                                        ⭐ MVP
-                                      </Badge>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                              <div className="text-gray-400 text-sm truncate">{player.champion_name}</div>
-                            </div>
-
-                            <div className="flex items-center gap-4 text-sm">
-                              <div className="text-center">
-                                <div className="text-green-400 font-bold">{player.kills}</div>
-                                <div className="text-xs text-gray-500">K</div>
-                              </div>
-                              <div className="text-gray-400">/</div>
-                              <div className="text-center">
-                                <div className="text-red-400 font-bold">{player.deaths}</div>
-                                <div className="text-xs text-gray-500">D</div>
-                              </div>
-                              <div className="text-gray-400">/</div>
-                              <div className="text-center">
-                                <div className="text-yellow-400 font-bold">{player.assists}</div>
-                                <div className="text-xs text-gray-500">A</div>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-col items-end text-xs text-gray-400 min-w-0">
-                              <div className="flex items-center gap-1">
-                                <span className="text-yellow-500">💰</span>
-                                <span>{formatGold(player.gold_earned)}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-red-500">⚔️</span>
-                                <span>{formatDamage(player.total_dmg_dealt)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      })()}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-400">
-                      No players with MVP scores found in this match.
-                    </div>
-                  )}
-                </div>
-              </CardContent>
+                             <CardContent className="pt-0">
+                 <MatchPlayers
+                   players={match.players}
+                   showOnlyMvp={true}
+                   onPlayerClick={(matchId, summonerName) => {
+                     const player = match.players.find(p => p.summoner_name === summonerName)
+                     if (player) handleRowClick(player, match.match_id)
+                   }}
+                   onProfileClick={handleProfileClick}
+                   matchId={match.match_id}
+                   showTeams={false}
+                   match={match}
+                   selectedStat={selectedStat}
+                   onStatChange={setSelectedStat}
+                 />
+               </CardContent>
             </Card>
           )
           })}
         </div>
       </div>
 
-      <PlayerProfileModal
-        puuid={selectedPlayerPuuid}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-      />
     </div>
   )
 }

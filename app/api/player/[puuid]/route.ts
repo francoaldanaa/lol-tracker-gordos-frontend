@@ -3,20 +3,17 @@ import { mongodbService } from '@/lib/mongodb'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { puuid: string } }
+  { params }: { params: Promise<{ puuid: string }> }
 ) {
   try {
     // Connect to MongoDB
     await mongodbService.connect()
     
     // Get player PUUID from URL params
-    const puuid = params.puuid
+    const { puuid } = await params
     
     // Get player profile
     const profile = await mongodbService.getPlayerProfile(puuid)
-    
-    // Disconnect from MongoDB
-    await mongodbService.disconnect()
     
     if (!profile) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 })

@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
     let matches
     
     if (matchId) {
-      // Get specific match
-      const match = await mongodbService.getMatchById(matchId)
+      // Get specific match with summoner information
+      const match = await mongodbService.getMatchByIdWithSummoners(matchId)
       if (!match) {
         return NextResponse.json({ error: 'Match not found' }, { status: 404 })
       }
@@ -28,9 +28,6 @@ export async function GET(request: NextRequest) {
       // Get recent matches with summoner information
       matches = await mongodbService.getRecentMatchesWithSummoners(limit)
     }
-    
-    // Disconnect from MongoDB
-    await mongodbService.disconnect()
     
     return NextResponse.json({ matches })
   } catch (error) {
