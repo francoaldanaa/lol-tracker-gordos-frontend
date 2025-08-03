@@ -192,6 +192,10 @@ class MongoDBService {
     }
   }
 
+  get database(): Db | null {
+    return this.db
+  }
+
   async getRecentMatches(limit: number = 10): Promise<Match[]> {
     if (!this.db) {
       throw new Error('Database not connected. Call connect() first.')

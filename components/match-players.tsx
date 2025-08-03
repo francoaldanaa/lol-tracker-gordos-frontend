@@ -1,7 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { MatchPlayer } from "@/lib/mongodb"
+import { useSummonerStats } from "@/hooks/use-summoner-stats"
+import SummonerStatsTooltip from "@/components/summoner-stats-tooltip"
 
 interface MatchPlayersProps {
   players: MatchPlayer[]
@@ -14,6 +17,7 @@ interface MatchPlayersProps {
   match?: { game_duration_seconds: number }
   selectedStat?: string
   onStatChange?: (stat: string) => void
+  onTooltipChange?: (position: { x: number; y: number } | null, player: MatchPlayer | null) => void
 }
 
 function getPlayerName(player: MatchPlayer): string {
@@ -123,8 +127,12 @@ export default function MatchPlayers({
   highlightedSummonerName,
   match,
   selectedStat = 'damage',
-  onStatChange
+  onStatChange,
+  onTooltipChange
 }: MatchPlayersProps) {
+  const { stats, loading, error, handleHoverStart, handleHoverEnd } = useSummonerStats()
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
+  const [hoveredPlayer, setHoveredPlayer] = useState<MatchPlayer | null>(null)
   // Filter players if showOnlyMvp is true
   const displayPlayers = showOnlyMvp 
     ? players.filter(player => 
@@ -147,6 +155,33 @@ export default function MatchPlayers({
       } else {
         onPlayerClick(matchId, summonerName) // Set highlight
       }
+    }
+  }
+
+  const handleSummonerHover = (player: MatchPlayer, event: React.MouseEvent) => {
+    // Only show tooltip for players with mvp_score
+    if (player.mvp_score === undefined || player.mvp_score === null || player.mvp_score <= 0) {
+      return
+    }
+    
+    const rect = event.currentTarget.getBoundingClientRect()
+    const position = {
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10
+    }
+    setTooltipPosition(position)
+    setHoveredPlayer(player)
+    onTooltipChange?.(position, player)
+    handleHoverStart(player.puuid, player.champion_name, player.position)
+  }
+
+  const handleSummonerLeave = () => {
+    // Only clear if tooltip was actually shown
+    if (tooltipPosition) {
+      setTooltipPosition(null)
+      setHoveredPlayer(null)
+      onTooltipChange?.(null, null)
+      handleHoverEnd()
     }
   }
 
@@ -195,6 +230,8 @@ export default function MatchPlayers({
                       <span 
                         className={`font-medium truncate ${player.mvp_score !== undefined && player.mvp_score > 0 ? 'text-white cursor-pointer hover:underline' : 'text-gray-500'}`}
                         onClick={player.mvp_score !== undefined && player.mvp_score > 0 && onProfileClick ? (e) => onProfileClick(player.puuid, e) : undefined}
+                        onMouseEnter={(e) => handleSummonerHover(player, e)}
+                        onMouseLeave={handleSummonerLeave}
                       >
                         {getPlayerName(player)}
                       </span>
@@ -414,6 +451,8 @@ export default function MatchPlayers({
                       <span 
                         className={`font-medium truncate ${player.mvp_score !== undefined && player.mvp_score > 0 ? 'text-white cursor-pointer hover:underline' : 'text-gray-500'}`}
                         onClick={player.mvp_score !== undefined && player.mvp_score > 0 && onProfileClick ? (e) => onProfileClick(player.puuid, e) : undefined}
+                        onMouseEnter={(e) => handleSummonerHover(player, e)}
+                        onMouseLeave={handleSummonerLeave}
                       >
                         {getPlayerName(player)}
                       </span>
@@ -593,6 +632,8 @@ export default function MatchPlayers({
             ))}
           </div>
         </div>
+        
+
       </div>
     )
   }
@@ -639,6 +680,8 @@ export default function MatchPlayers({
                      <span 
                        className={`font-medium truncate ${player.mvp_score !== undefined && player.mvp_score > 0 ? 'text-white cursor-pointer hover:underline' : 'text-gray-500'}`}
                        onClick={player.mvp_score !== undefined && player.mvp_score > 0 && onProfileClick ? (e) => onProfileClick(player.puuid, e) : undefined}
+                       onMouseEnter={(e) => handleSummonerHover(player, e)}
+                       onMouseLeave={handleSummonerLeave}
                      >
                        {getPlayerName(player)}
                      </span>
@@ -825,6 +868,7 @@ export default function MatchPlayers({
           }
         </div>
       )}
+
     </div>
   )
 }
