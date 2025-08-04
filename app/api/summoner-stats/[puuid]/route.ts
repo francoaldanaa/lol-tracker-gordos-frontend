@@ -12,17 +12,24 @@ interface SummonerStats {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { puuid: string } }
+  { params }: { params: Promise<{ puuid: string }> }
 ) {
   try {
-    const { puuid } = params
+    const { puuid } = await params
     const { searchParams } = new URL(request.url)
     const championName = searchParams.get('champion')
     const position = searchParams.get('position')
 
-    if (!puuid || !championName || !position) {
+    if (!puuid || !championName) {
       return NextResponse.json(
-        { error: 'Missing required parameters: puuid, champion, position' },
+        { error: 'Missing required parameters: puuid, champion' },
+        { status: 400 }
+      )
+    }
+    
+    if (!position || position.trim() === '') {
+      return NextResponse.json(
+        { error: 'Position required for winrate statistics' },
         { status: 400 }
       )
     }
@@ -38,6 +45,8 @@ export async function GET(
     const fifteenDaysAgo = new Date()
     fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15)
     const timestampFilter = fifteenDaysAgo.toISOString()
+    
+
 
     // Aggregate pipeline to get winrate statistics
     const pipeline = [
@@ -163,6 +172,7 @@ export async function GET(
     const result = await db.collection('matches').aggregate(pipeline).toArray()
     
     if (result.length === 0) {
+
       return NextResponse.json({
         championWinrate: 0,
         overallWinrate: 0,
@@ -175,6 +185,8 @@ export async function GET(
 
     const rawStats = result[0]
     
+
+    
     const stats: SummonerStats = {
       championWinrate: Math.round(rawStats.championWinrate * 10) / 10,
       overallWinrate: Math.round(rawStats.overallWinrate * 10) / 10,
@@ -183,6 +195,7 @@ export async function GET(
       championGames: rawStats.championGames,
       positionGames: rawStats.positionGames
     }
+
 
     return NextResponse.json(stats)
   } catch (error) {

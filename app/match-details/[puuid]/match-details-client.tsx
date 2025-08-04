@@ -4,10 +4,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft } from 'lucide-react'
 import { Match, MatchPlayer } from '@/lib/mongodb'
 import MatchPlayers from '@/components/match-players'
 import StatsComparison from '@/components/stats-comparison'
@@ -21,20 +19,20 @@ function formatDuration(seconds: number): string {
 }
 
 function getGameType(queueId: number): string {
-  switch (queueId) {
-    case 420:
-      return "Ranked Solo/Duo"
-    case 440:
-      return "Ranked Flex"
-    case 450:
-      return "ARAM"
-    case 400:
-      return "Normal Draft"
-    case 430:
-      return "Normal Blind"
-    default:
-      return "Unknown"
+  // Common queue IDs for League of Legends
+  const queueTypes: { [key: number]: string } = {
+    400: "NORMAL", // Normal Draft Pick
+    420: "RANKED DUO", // Ranked Solo/Duo
+    430: "NORMAL", // Normal Blind Pick
+    440: "RANKED FLEX", // Ranked Flex
+    450: "ARAM",   // ARAM
+    700: "CLASH", // Clash
+    900: "URF", // URF
+    1020: "ONE FOR ALL", // One for All
+    1300: "BLITZ", // Nexus Blitz
+    1400: "OTRO", // Ultimate Spellbook
   }
+  return queueTypes[queueId] || "OTRO"
 }
 
 function formatMatchDate(timestamp: string): string {
@@ -149,7 +147,7 @@ export default function MatchDetailsClient() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white p-4">
+      <div className="min-h-screen bg-gray-950 text-white p-4 pt-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center py-20">
             <div className="text-xl">Cargando detalles de la partida...</div>
@@ -161,7 +159,7 @@ export default function MatchDetailsClient() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white p-4">
+      <div className="min-h-screen bg-gray-950 text-white p-4 pt-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center py-20">
             <div className="text-xl text-red-400">Error: {error}</div>
@@ -173,7 +171,7 @@ export default function MatchDetailsClient() {
 
   if (!match) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white p-4">
+      <div className="min-h-screen bg-gray-950 text-white p-4 pt-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center py-20">
             <div className="text-xl">Partida no encontrada</div>
@@ -193,21 +191,8 @@ export default function MatchDetailsClient() {
   const isWin = trackedSummoners.some(player => player.team_id === winningTeamId)
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-4">
+    <div className="min-h-screen bg-gray-950 text-white p-4 pt-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => router.back()}
-            className="text-gray-400 hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
-          </Button>
-        </div>
-
         {/* Match Info */}
         <Card className="bg-gray-900 border-gray-800">
           <CardContent className="px-3 py-1.5">
@@ -233,7 +218,10 @@ export default function MatchDetailsClient() {
                 >
                   {getGameType(match.queue_id)}
                 </Badge>
-                <span className="text-gray-400 text-sm">
+                <span 
+                  className="text-gray-400 text-lg font-semibold"
+                  title="Duración de la partida"
+                >
                   {formatDuration(match.game_duration_seconds)}
                 </span>
               </div>

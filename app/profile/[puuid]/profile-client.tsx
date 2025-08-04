@@ -4,9 +4,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Trophy, Target, Zap, Eye, MapPin, Users, Users2 } from 'lucide-react'
+import { Trophy, Target, Zap, Eye, MapPin, Users, Users2 } from 'lucide-react'
 
 interface PlayerProfile {
   puuid: string
@@ -127,7 +126,7 @@ export default function ProfileClient() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white p-4">
+      <div className="min-h-screen bg-gray-950 text-white p-4 pt-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center py-20">
             <div className="text-xl">Cargando perfil...</div>
@@ -139,7 +138,7 @@ export default function ProfileClient() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white p-4">
+      <div className="min-h-screen bg-gray-950 text-white p-4 pt-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center py-20">
             <div className="text-xl text-red-400">Error: {error}</div>
@@ -151,7 +150,7 @@ export default function ProfileClient() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white p-4">
+      <div className="min-h-screen bg-gray-950 text-white p-4 pt-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center py-20">
             <div className="text-xl">Perfil no encontrado</div>
@@ -162,19 +161,10 @@ export default function ProfileClient() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-4">
+    <div className="min-h-screen bg-gray-950 text-white p-4 pt-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => router.back()}
-            className="text-gray-400 hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
-          </Button>
+        <div className="mb-6">
           <h1 className="text-2xl font-bold">Perfil del Jugador</h1>
         </div>
 

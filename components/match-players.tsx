@@ -14,7 +14,7 @@ interface MatchPlayersProps {
   matchId?: string
   showTeams?: boolean
   highlightedSummonerName?: string | null
-  match?: { game_duration_seconds: number }
+  match?: { game_duration_seconds: number; queue_id: number }
   selectedStat?: string
   onStatChange?: (stat: string) => void
   onTooltipChange?: (position: { x: number; y: number } | null, player: MatchPlayer | null) => void
@@ -161,6 +161,16 @@ export default function MatchPlayers({
   const handleSummonerHover = (player: MatchPlayer, event: React.MouseEvent) => {
     // Only show tooltip for players with mvp_score
     if (player.mvp_score === undefined || player.mvp_score === null || player.mvp_score <= 0) {
+      return
+    }
+    
+    // Only show tooltip for specific game types: Normal Draft (400), Ranked Solo (420), Ranked Flex (440)
+    if (match?.queue_id && ![400, 420, 440].includes(match.queue_id)) {
+      return
+    }
+    
+    // Don't show tooltip if position is empty (common in non-ranked games)
+    if (!player.position || player.position.trim() === '') {
       return
     }
     

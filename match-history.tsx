@@ -19,17 +19,17 @@ function getGameType(queueId: number): string {
   // Common queue IDs for League of Legends
   const queueTypes: { [key: number]: string } = {
     400: "NORMAL", // Normal Draft Pick
-    420: "RANKED Duo", // Ranked Solo/Duo
+    420: "RANKED DUO", // Ranked Solo/Duo
     430: "NORMAL", // Normal Blind Pick
-    440: "RANKED Flex", // Ranked Flex
+    440: "RANKED FLEX", // Ranked Flex
     450: "ARAM",   // ARAM
-    700: "NORMAL", // Clash
-    900: "NORMAL", // URF
-    1020: "NORMAL", // One for All
-    1300: "NORMAL", // Nexus Blitz
-    1400: "NORMAL", // Ultimate Spellbook
+    700: "CLASH", // Clash
+    900: "URF", // URF
+    1020: "ONE FOR ALL", // One for All
+    1300: "BLITZ", // Nexus Blitz
+    1400: "OTRO", // Ultimate Spellbook
   }
-  return queueTypes[queueId] || "NORMAL"
+  return queueTypes[queueId] || "OTRO"
 }
 
 function formatMatchDate(timestamp: string): string {
@@ -83,7 +83,7 @@ export default function Component() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 p-4 md:p-6">
+      <div className="min-h-screen bg-gray-950 p-4 md:p-6 pt-8">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">Historial de Partidas</h1>
@@ -99,7 +99,7 @@ export default function Component() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-950 p-4 md:p-6">
+      <div className="min-h-screen bg-gray-950 p-4 md:p-6 pt-8">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">Historial de Partidas</h1>
@@ -120,7 +120,7 @@ export default function Component() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-950 p-4 md:p-6 pt-8">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Historial de Partidas</h1>

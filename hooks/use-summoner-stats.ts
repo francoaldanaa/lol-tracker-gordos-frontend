@@ -48,13 +48,14 @@ export function useSummonerStats(): UseSummonerStatsReturn {
       loadingCache.add(cacheKey)
       setLoading(true)
       setError(null)
+      
+      const url = `/api/summoner-stats/${puuid}?champion=${encodeURIComponent(champion)}&position=${encodeURIComponent(position)}`
 
-      const response = await fetch(
-        `/api/summoner-stats/${puuid}?champion=${encodeURIComponent(champion)}&position=${encodeURIComponent(position)}`
-      )
-
+      const response = await fetch(url)
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
       }
 
       const data: SummonerStats = await response.json()
@@ -68,9 +69,9 @@ export function useSummonerStats(): UseSummonerStatsReturn {
         setLoading(false)
       }
     } catch (err) {
-      console.error('Error fetching summoner stats:', err)
       if (currentKeyRef.current === cacheKey) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch stats')
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch stats'
+        setError(errorMessage)
         setLoading(false)
       }
     } finally {
@@ -80,6 +81,7 @@ export function useSummonerStats(): UseSummonerStatsReturn {
 
   const handleHoverStart = useCallback((puuid: string, champion: string, position: string) => {
     const cacheKey = `${puuid}-${champion}-${position}`
+    
     currentKeyRef.current = cacheKey
 
     // Clear any existing timeout
@@ -98,6 +100,7 @@ export function useSummonerStats(): UseSummonerStatsReturn {
     // Set loading state immediately for UX feedback
     setStats(null)
     setError(null)
+    setLoading(true)
 
     // Start 1-second timer
     hoverTimeoutRef.current = setTimeout(() => {
