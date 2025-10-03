@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MatchPlayer } from "@/lib/mongodb"
+import { getChampionImageUrl } from '@/lib/game-utils'
 
 interface StatsComparisonProps {
   players: MatchPlayer[]
@@ -172,9 +173,9 @@ export default function StatsComparison({
                 </div>
                 
                 {/* Champion image */}
-                <div className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0 relative hover-tooltip-container" onMouseEnter={() => console.log('Champion hover entered:', player.champion_name)} onMouseLeave={() => console.log('Champion hover left:', player.champion_name)}>
+                <div className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0 relative hover-tooltip-container">
                   <img
-                    src={`/assets/img/champion/${player.champion_name}.png`}
+                    src={getChampionImageUrl(player.champion_name)}
                     onError={(e) => {
                       e.currentTarget.onerror = null
                       e.currentTarget.src = `/placeholder.svg?height=32&width=32&text=${player.champion_name}`

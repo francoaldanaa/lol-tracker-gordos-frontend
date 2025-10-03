@@ -28,7 +28,6 @@ export function useMatches(limit: number = 10): UseMatchesReturn {
       setMatches(data.matches || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
-      console.error('Error fetching matches:', err)
     } finally {
       setLoading(false)
     }
@@ -43,4 +42,4 @@ export function useMatches(limit: number = 10): UseMatchesReturn {
   }
 
   return { matches, loading, error, refetch }
-} 
+}

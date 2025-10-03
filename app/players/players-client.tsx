@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Trophy, Zap, Target } from 'lucide-react'
 import Image from 'next/image'
+import { getPositionBgColor, getPositionDisplay, getChampionImageUrl, formatNumber, calculateKDA } from '@/lib/game-utils'
 
 interface PlayerStats {
   puuid: string
@@ -22,32 +23,7 @@ interface PlayerStats {
   mainRole: string | null
 }
 
-function getPositionColor(position: string): string {
-  switch (position?.toLowerCase()) {
-    case 'top': return 'bg-red-500'
-    case 'jungle': return 'bg-green-500'
-    case 'middle': return 'bg-blue-500'
-    case 'bottom': return 'bg-yellow-500'
-    case 'utility': return 'bg-purple-500'
-    default: return 'bg-gray-500'
-  }
-}
-
-function getPositionDisplay(position: string): string {
-  switch (position?.toLowerCase()) {
-    case 'utility': return 'Support'
-    case 'middle': return 'Mid'
-    case 'bottom': return 'ADC'
-    default: return position?.charAt(0).toUpperCase() + position?.slice(1) || 'Unknown'
-  }
-}
-
-function getChampionImageUrl(championName: string): string {
-  if (!championName) return '/placeholder.svg'
-  // Format champion name for Riot's CDN (remove spaces, apostrophes, etc.)
-  const formattedName = championName.replace(/[^a-zA-Z0-9]/g, '')
-  return `https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/${formattedName}.png`
-}
+// Utility functions moved to @/lib/game-utils
 
 export default function PlayersClient() {
   const [players, setPlayers] = useState<PlayerStats[]>([])
@@ -160,7 +136,7 @@ export default function PlayersClient() {
                       {/* <p className="text-xs text-gray-400 truncate">{player.real_name}</p> */}
                       {player.mainRole && (
                         <Badge 
-                          className={`text-xs ${getPositionColor(player.mainRole)} text-white border-0 mt-1`}
+                          className={`text-xs ${getPositionBgColor(player.mainRole)} text-white border-0 mt-1`}
                           style={{ fontSize: '10px', padding: '2px 6px' }}
                         >
                           {getPositionDisplay(player.mainRole).toUpperCase()}
@@ -183,7 +159,7 @@ export default function PlayersClient() {
                         'border-red-500 text-red-400'
                       }`}
                     >
-                      {player.winRate.toFixed(1)}% WR
+                      {formatNumber(player.winRate)}% WR
                     </Badge>
                   </div>
 
@@ -192,9 +168,9 @@ export default function PlayersClient() {
                     <div className="flex items-center gap-1 text-sm">
                       <Zap className="w-4 h-4 text-blue-500" />
                       <span className="text-gray-300">
-                        {player.averageKDA.kills.toFixed(1)}/
-                        {player.averageKDA.deaths.toFixed(1)}/
-                        {player.averageKDA.assists.toFixed(1)}
+                        {formatNumber(player.averageKDA.kills)}/
+                      {formatNumber(player.averageKDA.deaths)}/
+                      {formatNumber(player.averageKDA.assists)}
                       </span>
                     </div>
                     <Badge 
@@ -205,7 +181,7 @@ export default function PlayersClient() {
                         'border-red-500 text-red-400'
                       }`}
                     >
-                      {kdaRatio.toFixed(2)} KDA
+                      {formatNumber(calculateKDA(player.averageKDA.kills, player.averageKDA.deaths, player.averageKDA.assists), 2)} KDA
                     </Badge>
                   </div>
                 </CardContent>

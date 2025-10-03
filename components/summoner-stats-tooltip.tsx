@@ -1,6 +1,7 @@
 "use client"
 
 import React from 'react'
+import { getPositionDisplay, formatNumber } from '@/lib/game-utils'
 
 interface SummonerStats {
   championWinrate: number
@@ -19,14 +20,7 @@ interface CircularProgressProps {
   games?: number
 }
 
-// Function to get Spanish position display (same as match-details)
-function getPositionDisplay(position: string): string {
-  const normalized = position.toUpperCase()
-  if (normalized === "MIDDLE") return "MID"
-  if (normalized === "BOTTOM") return "ADC"
-  if (normalized === "UTILITY") return "SUPPORT"
-  return normalized
-}
+// Utility function moved to @/lib/game-utils
 
 function CircularProgress({ percentage, size = 60, strokeWidth = 4, label, games }: CircularProgressProps) {
   const radius = (size - strokeWidth) / 2
@@ -77,7 +71,7 @@ function CircularProgress({ percentage, size = 60, strokeWidth = 4, label, games
         {/* Percentage text */}
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-xs font-semibold text-white">
-            {percentage.toFixed(0)}%
+            {formatNumber(percentage)}%
           </span>
         </div>
       </div>

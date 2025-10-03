@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { MatchPlayer } from "@/lib/mongodb"
 import { useSummonerStats } from "@/hooks/use-summoner-stats"
 import SummonerStatsTooltip from "@/components/summoner-stats-tooltip"
+import { getPositionColor, getPositionDisplay, formatGold, formatDamage, formatNumber, getChampionImageUrl, getItemImageUrl } from '@/lib/game-utils'
 
 interface MatchPlayersProps {
   players: MatchPlayer[]
@@ -24,34 +25,7 @@ function getPlayerName(player: MatchPlayer): string {
   return player.summoner_name || player.riot_id_game_name || 'Desconocido'
 }
 
-function formatGold(gold: number): string {
-  return `${(gold / 1000).toFixed(1)}k`
-}
-
-function formatDamage(damage: number): string {
-  return `${(damage / 1000).toFixed(1)}k`
-}
-
-function getPositionColor(position: string): string {
-  const colors = {
-    TOP: "text-red-400",
-    JUNGLE: "text-green-400",
-    MIDDLE: "text-blue-400",
-    BOTTOM: "text-yellow-400",
-    UTILITY: "text-purple-400",
-  }
-
-  const key = position.toUpperCase() as keyof typeof colors
-  return colors[key] || "text-gray-400"
-}
-
-function getPositionDisplay(position: string): string {
-  const normalized = position.toUpperCase()
-  if (normalized === "MIDDLE") return "MID"
-  if (normalized === "BOTTOM") return "ADC"
-  if (normalized === "UTILITY") return "SUPPORT"
-  return normalized
-}
+// Utility functions moved to @/lib/game-utils
 
 // Map stat labels to their corresponding filter values
 const filterableStats = {
@@ -217,7 +191,7 @@ export default function MatchPlayers({
                 <div className="w-[30%] flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                     <img
-                      src={`/assets/img/champion/${player.champion_name}.png`}
+                      src={getChampionImageUrl(player.champion_name)}
                       onError={(e) => {
                         e.currentTarget.onerror = null
                         e.currentTarget.src = `/placeholder.svg?height=40&width=40&text=${player.champion_name}`
@@ -253,7 +227,7 @@ export default function MatchPlayers({
                       </span>
                       {player.mvp_score !== undefined && player.mvp_score > 0 && (
                         <span className="text-purple-400 text-xs font-medium">
-                          MVP Score: {player.mvp_score.toFixed(2)}
+                          MVP Score: {formatNumber(player.mvp_score, 2)}
                         </span>
                       )}
                     </div>
@@ -266,7 +240,7 @@ export default function MatchPlayers({
                     <div key={itemIndex} className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center overflow-hidden">
                       {itemId && itemId > 0 ? (
                         <img
-                          src={`/assets/img/item/${itemId}.png`}
+                          src={getItemImageUrl(itemId)}
                           onError={(e) => {
                             e.currentTarget.onerror = null
                             e.currentTarget.src = `/placeholder.svg?height=32&width=32&text=${itemId}`
@@ -353,31 +327,31 @@ export default function MatchPlayers({
                         <div className="space-y-1 text-sm">
                           <StatRow 
                             label="Oro Ganado" 
-                            value={`${(player.gold_earned / 1000).toFixed(3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
+                            value={`${formatNumber(player.gold_earned / 1000, 3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Daño Total" 
-                            value={`${(player.total_dmg_dealt_champions / 1000).toFixed(3)}⚔️`}
+                            value={`${formatNumber(player.total_dmg_dealt_champions / 1000, 3)}⚔️`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Curación Total" 
-                            value={`${(player.healing_done / 1000).toFixed(3)}💚`}
+                            value={`${formatNumber(player.healing_done / 1000, 3)}💚`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Tiempo Muerto" 
-                            value={`${Math.floor(player.total_time_spent_dead / 60)}m ${player.total_time_spent_dead % 60}s (${((player.total_time_spent_dead / (match?.game_duration_seconds || 1)) * 100).toFixed(1)}%)`}
+                            value={`${Math.floor(player.total_time_spent_dead / 60)}m ${player.total_time_spent_dead % 60}s (${formatNumber((player.total_time_spent_dead / (match?.game_duration_seconds || 1)) * 100)}%)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Minions Eliminados" 
-                            value={`${player.total_minions_killed}🐛 (${(player.total_minions_killed / ((match?.game_duration_seconds || 1) / 60)).toFixed(1)}/m)`}
+                            value={`${player.total_minions_killed}🐛 (${formatNumber(player.total_minions_killed / ((match?.game_duration_seconds || 1) / 60))}/m)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
@@ -438,7 +412,7 @@ export default function MatchPlayers({
                 <div className="w-[30%] flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                     <img
-                      src={`/assets/img/champion/${player.champion_name}.png`}
+                      src={getChampionImageUrl(player.champion_name)}
                       onError={(e) => {
                         e.currentTarget.onerror = null
                         e.currentTarget.src = `/placeholder.svg?height=40&width=40&text=${player.champion_name}`
@@ -474,7 +448,7 @@ export default function MatchPlayers({
                       </span>
                       {player.mvp_score !== undefined && player.mvp_score > 0 && (
                         <span className="text-purple-400 text-xs font-medium">
-                          MVP Score: {player.mvp_score.toFixed(2)}
+                          MVP Score: {formatNumber(player.mvp_score, 2)}
                         </span>
                       )}
                     </div>
@@ -487,7 +461,7 @@ export default function MatchPlayers({
                     <div key={itemIndex} className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center overflow-hidden">
                       {itemId && itemId > 0 ? (
                         <img
-                          src={`/assets/img/item/${itemId}.png`}
+                          src={getItemImageUrl(itemId)}
                           onError={(e) => {
                             e.currentTarget.onerror = null
                             e.currentTarget.src = `/placeholder.svg?height=32&width=32&text=${itemId}`
@@ -574,31 +548,31 @@ export default function MatchPlayers({
                         <div className="space-y-1 text-sm">
                           <StatRow 
                             label="Oro ganado" 
-                            value={`${(player.gold_earned / 1000).toFixed(3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
+                            value={`${formatNumber(player.gold_earned / 1000, 3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Daño total" 
-                            value={`${(player.total_dmg_dealt_champions / 1000).toFixed(3)}⚔️`}
+                            value={`${formatNumber(player.total_dmg_dealt_champions / 1000, 3)}⚔️`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Curación total" 
-                            value={`${(player.healing_done / 1000).toFixed(3)}💚`}
+                            value={`${formatNumber(player.healing_done / 1000, 3)}💚`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Tiempo muerto" 
-                            value={`${Math.floor(player.total_time_spent_dead / 60)}m ${player.total_time_spent_dead % 60}s (${((player.total_time_spent_dead / (match?.game_duration_seconds || 1)) * 100).toFixed(1)}%)`}
+                            value={`${Math.floor(player.total_time_spent_dead / 60)}m ${player.total_time_spent_dead % 60}s (${formatNumber((player.total_time_spent_dead / (match?.game_duration_seconds || 1)) * 100)}%)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Minions eliminados" 
-                            value={`${player.total_minions_killed}🐛 (${(player.total_minions_killed / ((match?.game_duration_seconds || 1) / 60)).toFixed(1)}/m)`}
+                            value={`${player.total_minions_killed}🐛 (${formatNumber(player.total_minions_killed / ((match?.game_duration_seconds || 1) / 60))}/m)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
@@ -667,7 +641,7 @@ export default function MatchPlayers({
               <div className="w-[30%] flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                   <img
-                    src={`/assets/img/champion/${player.champion_name}.png`}
+                    src={getChampionImageUrl(player.champion_name)}
                     onError={(e) => {
                       e.currentTarget.onerror = null
                       e.currentTarget.src = `/placeholder.svg?height=40&width=40&text=${player.champion_name}`
@@ -703,7 +677,7 @@ export default function MatchPlayers({
                      </span>
                      {player.mvp_score !== undefined && player.mvp_score > 0 && (
                         <span className="text-purple-400 text-xs font-medium">
-                          MVP Score: {player.mvp_score.toFixed(2)}
+                          MVP Score: {formatNumber(player.mvp_score, 2)}
                         </span>
                       )}
                    </div>
@@ -716,7 +690,7 @@ export default function MatchPlayers({
                   <div key={itemIndex} className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center overflow-hidden">
                     {itemId && itemId > 0 ? (
                       <img
-                        src={`/assets/img/item/${itemId}.png`}
+                        src={getItemImageUrl(itemId)}
                         onError={(e) => {
                           e.currentTarget.onerror = null
                           e.currentTarget.src = `/placeholder.svg?height=32&width=32&text=${itemId}`
@@ -803,31 +777,31 @@ export default function MatchPlayers({
                         <div className="space-y-1 text-sm">
                           <StatRow 
                             label="Oro Ganado" 
-                            value={`${(player.gold_earned / 1000).toFixed(3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
+                            value={`${formatNumber(player.gold_earned / 1000, 3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Daño Total" 
-                            value={`${(player.total_dmg_dealt_champions / 1000).toFixed(3)}⚔️`}
+                            value={`${formatNumber(player.total_dmg_dealt_champions / 1000, 3)}⚔️`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Curación Total" 
-                            value={`${(player.healing_done / 1000).toFixed(3)}💚`}
+                            value={`${formatNumber(player.healing_done / 1000, 3)}💚`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Tiempo Muerto" 
-                            value={`${Math.floor(player.total_time_spent_dead / 60)}m ${player.total_time_spent_dead % 60}s (${((player.total_time_spent_dead / (match?.game_duration_seconds || 1)) * 100).toFixed(1)}%)`}
+                            value={`${Math.floor(player.total_time_spent_dead / 60)}m ${player.total_time_spent_dead % 60}s (${formatNumber((player.total_time_spent_dead / (match?.game_duration_seconds || 1)) * 100)}%)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />
                           <StatRow 
                             label="Minions Eliminados" 
-                            value={`${player.total_minions_killed}🐛 (${(player.total_minions_killed / ((match?.game_duration_seconds || 1) / 60)).toFixed(1)}/m)`}
+                            value={`${player.total_minions_killed}🐛 (${formatNumber(player.total_minions_killed / ((match?.game_duration_seconds || 1) / 60))}/m)`}
                             selectedStat={selectedStat}
                             onStatChange={onStatChange}
                           />

@@ -8,55 +8,9 @@ import { Separator } from "@/components/ui/separator"
 import { useMatches } from "@/hooks/use-matches"
 import { Match, MatchPlayer } from "@/lib/mongodb"
 import MatchPlayers from "@/components/match-players"
+import { formatDuration, formatMatchHistoryDate, getGameType } from '@/lib/game-utils'
 
-function formatDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`
-}
-
-function getGameType(queueId: number): string {
-  // Common queue IDs for League of Legends
-  const queueTypes: { [key: number]: string } = {
-    400: "NORMAL", // Normal Draft Pick
-    420: "RANKED DUO", // Ranked Solo/Duo
-    430: "NORMAL", // Normal Blind Pick
-    440: "RANKED FLEX", // Ranked Flex
-    450: "ARAM",   // ARAM
-    700: "CLASH", // Clash
-    900: "URF", // URF
-    1020: "ONE FOR ALL", // One for All
-    1300: "BLITZ", // Nexus Blitz
-    1400: "OTRO", // Ultimate Spellbook
-  }
-  return queueTypes[queueId] || "OTRO"
-}
-
-function formatMatchDate(timestamp: string): string {
-  const matchDate = new Date(timestamp)
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const matchDay = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate())
-  
-  const timeString = matchDate.toLocaleTimeString('es-ES', { 
-    hour: '2-digit', 
-    minute: '2-digit',
-    hour12: false 
-  })
-  
-  if (matchDay.getTime() === today.getTime()) {
-    return `Hoy ${timeString}`
-  } else if (matchDay.getTime() === yesterday.getTime()) {
-    return `Ayer ${timeString}`
-  } else {
-    return `${matchDate.toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit' 
-    })} ${timeString}`
-  }
-}
+// Utility functions moved to @/lib/game-utils
 
 
 
@@ -166,7 +120,7 @@ export default function Component() {
                       {getGameType(match.queue_id)}
                     </Badge>
                     <span className="text-gray-400 text-sm">
-                      {formatMatchDate(match.timestamp)}
+                      {formatMatchHistoryDate(match.timestamp)}
                     </span>
                   </div>
                   <div className="text-gray-400 text-lg">{formatDuration(match.game_duration_seconds)}</div>

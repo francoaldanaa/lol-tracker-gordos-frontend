@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Trophy, Target, Eye, MapPin, Users, Users2, Clock } from 'lucide-react'
+import { getPositionColor, getPositionDisplay, formatGold, formatDamage, getChampionImageUrl, formatNumber, calculateKDA, getWinrateColor } from '@/lib/game-utils'
 
 interface PlayerProfile {
   puuid: string
@@ -68,48 +69,7 @@ interface PlayerProfile {
   recent_matches: any[]
 }
 
-function formatGold(gold: number): string {
-  return (gold / 1000).toFixed(1) + 'k'
-}
-
-function formatDamage(damage: number): string {
-  return (damage / 1000).toFixed(1) + 'k'
-}
-
-function getPositionColor(position: string): string {
-  switch (position) {
-    case 'TOP': return 'text-blue-400'
-    case 'JUNGLE': return 'text-green-400'
-    case 'MIDDLE': return 'text-yellow-400'
-    case 'BOTTOM': return 'text-red-400'
-    case 'UTILITY': return 'text-purple-400'
-    default: return 'text-gray-400'
-  }
-}
-
-function getPositionDisplay(position: string): string {
-  // Normalize the position string
-  const normalizedPosition = position?.toUpperCase().trim()
-  
-  switch (normalizedPosition) {
-    case 'TOP': return 'TOP'
-    case 'JUNGLE': return 'JUNGLE'
-    case 'MIDDLE': return 'MID'
-    case 'BOTTOM': return 'ADC'
-    case 'UTILITY': return 'SUPPORT'
-    case 'SUPPORT': return 'SUPPORT'
-    case 'ADC': return 'ADC'
-    case 'MID': return 'MID'
-    case 'JG': return 'JUNGLE'
-    case 'JUNGLER': return 'JUNGLE'
-    case '': return 'UNKNOWN'
-    case null:
-    case undefined: return 'UNKNOWN'
-    default: 
-      console.warn('Unknown position value:', position)
-      return position || 'UNKNOWN'
-  }
-}
+// Helper functions moved to @/lib/game-utils
 
 export default function ProfileClient() {
   const params = useParams()
@@ -156,9 +116,8 @@ export default function ProfileClient() {
       const data = await response.json()
       setProfile(data.profile)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-      console.error('Error fetching profile:', err)
-    } finally {
+        setError(err instanceof Error ? err.message : 'An error occurred')
+      } finally {
       setLoading(false)
     }
   }
@@ -293,7 +252,7 @@ export default function ProfileClient() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div className="text-center cursor-pointer">
-                        <div className="text-blue-400 font-medium text-lg">{profile.win_rate ? profile.win_rate.toFixed(1) : '0.0'}%</div>
+                        <div className="text-blue-400 font-medium text-lg">{formatNumber(profile.win_rate)}%</div>
                         <div className="text-gray-400">Winrate</div>
                       </div>
                     </TooltipTrigger>
@@ -312,29 +271,29 @@ export default function ProfileClient() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex items-center justify-center gap-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-400">{profile.average_kills ? profile.average_kills.toFixed(1) : '0.0'}</div>
+                    <div className="text-2xl font-bold text-green-400">{formatNumber(profile.average_kills)}</div>
                     <div className="text-sm text-gray-400">K</div>
                   </div>
                   <div className="text-2xl font-bold text-gray-400">/</div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-red-400">{profile.average_deaths ? profile.average_deaths.toFixed(1) : '0.0'}</div>
+                    <div className="text-2xl font-bold text-red-400">{formatNumber(profile.average_deaths)}</div>
                     <div className="text-sm text-gray-400">D</div>
                   </div>
                   <div className="text-2xl font-bold text-gray-400">/</div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-400">{profile.average_assists ? profile.average_assists.toFixed(1) : '0.0'}</div>
+                    <div className="text-2xl font-bold text-blue-400">{formatNumber(profile.average_assists)}</div>
                     <div className="text-sm text-gray-400">A</div>
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-400">{(((profile.average_kills || 0) + (profile.average_assists || 0)) / Math.max((profile.average_deaths || 1), 1)).toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-purple-400">{formatNumber(calculateKDA(profile.average_kills || 0, profile.average_deaths || 0, profile.average_assists || 0), 2)}</div>
                   <div className="text-sm text-gray-400">KD</div>
                 </div>
               </div>
               <Separator className="bg-gray-700" />
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-yellow-400">{profile.average_mvp_score ? profile.average_mvp_score.toFixed(1) : '0.0'}</div>
+                  <div className="text-2xl font-bold text-yellow-400">{formatNumber(profile.average_mvp_score)}</div>
                   <div className="text-sm text-gray-400">MVP Score</div>
                 </div>
                 <div className="text-center">
@@ -391,7 +350,7 @@ export default function ProfileClient() {
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
                         <img 
-                          src={`https://ddragon.leagueoflegends.com/cdn/14.23.1/img/champion/${champion.champion}.png`}
+                          src={getChampionImageUrl(champion.champion)}
                           alt={champion.champion}
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -415,22 +374,21 @@ export default function ProfileClient() {
                       <div className="text-center">
                         <div className="text-xs text-gray-400">KDA</div>
                         <div className="text-white">
-                          <span className="text-green-400">{champion.average_kills ? champion.average_kills.toFixed(1) : '0.0'}</span>/
-                          <span className="text-red-400">{champion.average_deaths ? champion.average_deaths.toFixed(1) : '0.0'}</span>/
-                          <span className="text-blue-400">{champion.average_assists ? champion.average_assists.toFixed(1) : '0.0'}</span>
+                          <span className="text-green-400">{formatNumber(champion.average_kills)}</span>/
+                <span className="text-red-400">{formatNumber(champion.average_deaths)}</span>/
+                <span className="text-blue-400">{formatNumber(champion.average_assists)}</span>
                         </div>
                       </div>
                       <div className="text-center">
                         <div className="text-xs text-gray-400">KD</div>
                         <div className="text-purple-400 font-medium">
-                          {champion.average_kd ? champion.average_kd.toFixed(2) : 
-                           (((champion.average_kills || 0) + (champion.average_assists || 0)) / Math.max((champion.average_deaths || 1), 1)).toFixed(2)}
+                          {formatNumber(champion.average_kd || calculateKDA(champion.average_kills || 0, champion.average_deaths || 0, champion.average_assists || 0), 2)}
                         </div>
                       </div>
                       <div className="text-center">
                         <div className="text-xs text-gray-400">WR</div>
                         <div className={`font-medium ${(champion.win_rate || 0) >= 50 ? 'text-green-400' : 'text-red-400'}`}>
-                          {champion.win_rate ? champion.win_rate.toFixed(1) : '0.0'}%
+                          {formatNumber(champion.win_rate)}%
                         </div>
                       </div>
                     </div>
@@ -495,7 +453,7 @@ export default function ProfileClient() {
                         {/* MVP Score */}
                         <div className="text-center">
                           <div className="px-2 py-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded text-sm font-bold">
-                            {playerData?.mvp_score?.toFixed(1) || 'N/A'}
+                            {formatNumber(playerData?.mvp_score) || 'N/A'}
                           </div>
                           <div className="text-gray-400 text-xs">MVP</div>
                         </div>
@@ -548,7 +506,7 @@ export default function ProfileClient() {
                             variant={(teammate.win_rate || 0) >= 50 ? "default" : "destructive"}
                             className={(teammate.win_rate || 0) >= 50 ? "bg-green-600" : "bg-red-600"}
                           >
-                            {teammate.win_rate ? teammate.win_rate.toFixed(1) : '0.0'}%
+                            {formatNumber(teammate.win_rate)}%
                           </Badge>
                         </td>
                       </tr>
@@ -571,46 +529,46 @@ export default function ProfileClient() {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Vision Score</span>
-                  <span className="font-bold text-purple-400">{profile.average_vision_score ? profile.average_vision_score.toFixed(1) : '0.0'}</span>
+                  <span className="font-bold text-purple-400">{formatNumber(profile.average_vision_score)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Wards Colocadas</span>
-                  <span className="font-bold text-green-400">{profile.average_wards_placed ? profile.average_wards_placed.toFixed(1) : '0.0'}</span>
+                  <span className="font-bold text-green-400">{formatNumber(profile.average_wards_placed)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Wards Destruidas</span>
-                  <span className="font-bold text-yellow-400">{profile.average_wards_killed ? profile.average_wards_killed.toFixed(1) : '0.0'}</span>
+                  <span className="font-bold text-yellow-400">{formatNumber(profile.average_wards_killed)}</span>
                 </div>
               </div>
               <Separator className="my-4 bg-gray-700" />
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-gray-400">📢 Pings Totales</span>
-                  <span className="font-bold text-blue-400">{profile.average_pings ? profile.average_pings.toFixed(1) : '0.0'}</span>
+                  <span className="font-bold text-blue-400">{formatNumber(profile.average_pings)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">⚠️ Pings de Peligro</span>
-                  <span className="font-bold text-orange-400">{profile.average_danger_pings ? profile.average_danger_pings.toFixed(1) : '0.0'}</span>
+                  <span className="font-bold text-orange-400">{formatNumber(profile.average_danger_pings)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">🔄 Pings de Retirada</span>
-                  <span className="font-bold text-yellow-400">{profile.average_retreat_pings ? profile.average_retreat_pings.toFixed(1) : '0.0'}</span>
+                  <span className="font-bold text-yellow-400">{formatNumber(profile.average_retreat_pings)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">⚡ Pings de Ataque</span>
-                  <span className="font-bold text-red-400">{profile.average_all_in_pings ? profile.average_all_in_pings.toFixed(1) : '0.0'}</span>
+                  <span className="font-bold text-red-400">{formatNumber(profile.average_all_in_pings)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">🤝 Pings de Ayuda</span>
-                  <span className="font-bold text-green-400">{profile.average_assist_me_pings ? profile.average_assist_me_pings.toFixed(1) : '0.0'}</span>
+                  <span className="font-bold text-green-400">{formatNumber(profile.average_assist_me_pings)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">👁️ Enemigo Desaparecido</span>
-                  <span className="font-bold text-purple-400">{profile.average_enemy_missing_pings ? profile.average_enemy_missing_pings.toFixed(1) : '0.0'}</span>
+                  <span className="font-bold text-purple-400">{formatNumber(profile.average_enemy_missing_pings)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">🚶 En Camino</span>
-                  <span className="font-bold text-cyan-400">{profile.average_on_my_way_pings ? profile.average_on_my_way_pings.toFixed(1) : '0.0'}</span>
+                  <span className="font-bold text-cyan-400">{formatNumber(profile.average_on_my_way_pings)}</span>
                 </div>
               </div>
             </CardContent>

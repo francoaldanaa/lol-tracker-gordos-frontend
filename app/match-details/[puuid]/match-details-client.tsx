@@ -11,56 +11,13 @@ import MatchPlayers from '@/components/match-players'
 import StatsComparison from '@/components/stats-comparison'
 import SummonerStatsTooltip from '@/components/summoner-stats-tooltip'
 import { useSummonerStats } from '@/hooks/use-summoner-stats'
+import { formatDuration, formatMatchDate, getGameType } from '@/lib/game-utils'
 
-function formatDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
-}
+// Utility functions moved to @/lib/game-utils
 
-function getGameType(queueId: number): string {
-  // Common queue IDs for League of Legends
-  const queueTypes: { [key: number]: string } = {
-    400: "NORMAL", // Normal Draft Pick
-    420: "RANKED DUO", // Ranked Solo/Duo
-    430: "NORMAL", // Normal Blind Pick
-    440: "RANKED FLEX", // Ranked Flex
-    450: "ARAM",   // ARAM
-    700: "CLASH", // Clash
-    900: "URF", // URF
-    1020: "ONE FOR ALL", // One for All
-    1300: "BLITZ", // Nexus Blitz
-    1400: "OTRO", // Ultimate Spellbook
-  }
-  return queueTypes[queueId] || "OTRO"
-}
+// getGameType moved to @/lib/game-utils
 
-function formatMatchDate(timestamp: string): string {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diffInMs = now.getTime() - date.getTime()
-  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60))
-  const diffInDays = Math.floor(diffInHours / 24)
-  
-  if (diffInHours < 1) {
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
-    return `hace ${diffInMinutes} minutos`
-  } else if (diffInHours < 24) {
-    return `hace ${diffInHours} horas`
-  } else if (diffInDays === 1) {
-    return "hace 1 día"
-  } else if (diffInDays < 7) {
-    return `hace ${diffInDays} días`
-  } else {
-    return date.toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
-}
+// formatMatchDate moved to @/lib/game-utils
 
 export default function MatchDetailsClient() {
   const params = useParams()
@@ -116,7 +73,6 @@ export default function MatchDetailsClient() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
-      console.error('Error fetching match:', err)
     } finally {
       setLoading(false)
     }
