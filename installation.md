@@ -74,4 +74,4 @@ pm2 startup systemd
 
 ## Configure init on reboot and NGINX
 
-Refer to [auto-setup.md](NGINX and PM2 guide)
+Refer to [NGINX and PM2 guide](auto-setup.md)

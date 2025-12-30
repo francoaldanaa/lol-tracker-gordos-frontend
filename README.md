@@ -4,4 +4,4 @@ Frontend for the lol-tracker project, built with **Next.js + TypeScript** and de
 
 ## 🔧 Installation
 
-Refer to [installation.md](Installation guide)
+Refer to [Installation guide](installation.md)
