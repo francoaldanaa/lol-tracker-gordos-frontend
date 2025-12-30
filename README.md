@@ -83,6 +83,3 @@ pnpm dev
 
 4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-## API Endpoints
-
-- `GET /api/matches` - Get recent matches (supports `limit` and `matchId` query parameters)
