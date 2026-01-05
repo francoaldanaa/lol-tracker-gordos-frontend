@@ -5,5 +5,5 @@ set -a
 source /etc/gordos-tracker-frontend.env
 set +a
 
-cd /opt/lol-tracker-gordos-frontend
+cd /opt/lol-tracker/lol-tracker-gordos-frontend
 exec pnpm start
