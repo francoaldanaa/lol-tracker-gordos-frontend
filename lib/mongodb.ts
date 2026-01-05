@@ -587,11 +587,11 @@ class MongoDBService {
 
 // Default configuration - you can override these values
 const defaultConfig: MongoDBConfig = {
-  host: process.env.MONGODB_HOST || 'localhost',
-  port: parseInt(process.env.MONGODB_PORT || '27017'),
-  username: process.env.MONGODB_USER || '',
-  password: process.env.MONGODB_PASS || '',
-  database: process.env.MONGODB_DATABASE || 'gordos_lol_tracker'
+  host: process.env.MONGO_HOST || 'localhost',
+  port: parseInt(process.env.MONGO_PORT || '27017'),
+  username: process.env.MONGO_USERNAME || '',
+  password: process.env.MONGO_PASSWORD || '',
+  database: process.env.MONGO_DATABASE || 'gordos_lol_tracker'
 }
 
 export const mongodbService = new MongoDBService(defaultConfig)
