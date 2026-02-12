@@ -196,6 +196,35 @@ class MongoDBService {
     return this.db
   }
 
+  private async enrichMatchesWithSummoners(matches: Match[]): Promise<Match[]> {
+    if (!this.db || matches.length === 0) {
+      return matches
+    }
+
+    const uniquePuuids = Array.from(
+      new Set(matches.flatMap((match) => match.players.map((player) => player.puuid)))
+    )
+
+    const summoners = await this.db
+      .collection('summoners')
+      .find({ puuid: { $in: uniquePuuids } })
+      .toArray() as unknown as Summoner[]
+
+    const summonerMap = new Map(summoners.map((summoner) => [summoner.puuid, summoner]))
+
+    return matches.map((match) => ({
+      ...match,
+      players: match.players.map((player) => {
+        const summoner = summonerMap.get(player.puuid)
+        return {
+          ...player,
+          summoner_name: summoner?.summoner_name || player.summoner_name,
+          real_name: summoner?.real_name || player.real_name,
+        }
+      }),
+    }))
+  }
+
   async getRecentMatches(limit: number = 10): Promise<Match[]> {
     if (!this.db) {
       throw new Error('Database not connected. Call connect() first.')
@@ -259,22 +288,8 @@ class MongoDBService {
         return null
       }
 
-      // Fetch summoner information for all players
-      const playersWithSummoners = await Promise.all(
-        (match as unknown as Match).players.map(async (player) => {
-          const summoner = await this.getSummonerByPuuid(player.puuid)
-          return {
-            ...player,
-            summoner_name: summoner?.summoner_name || player.summoner_name,
-            real_name: summoner?.real_name || player.real_name
-          }
-        })
-      )
-
-      return {
-        ...(match as unknown as Match),
-        players: playersWithSummoners
-      }
+      const [enrichedMatch] = await this.enrichMatchesWithSummoners([match as unknown as Match])
+      return enrichedMatch || null
     } catch (error) {
       console.error('Failed to fetch match with summoners:', error)
       throw error
@@ -287,36 +302,51 @@ class MongoDBService {
     }
 
     try {
-      const collection = this.db.collection('matches')
-      const matches = await collection
+      const matches = await this.db.collection('matches')
         .find({})
         .sort({ timestamp: -1 })
         .limit(limit)
         .toArray()
 
-      // Fetch summoner information for all players
-      const matchesWithSummoners = await Promise.all(
-        (matches as unknown as Match[]).map(async (match) => {
-          const playersWithSummoners = await Promise.all(
-            match.players.map(async (player) => {
-              const summoner = await this.getSummonerByPuuid(player.puuid)
-              return {
-                ...player,
-                summoner_name: summoner?.summoner_name || player.summoner_name,
-                real_name: summoner?.real_name || player.real_name
-              }
-            })
-          )
-          return {
-            ...match,
-            players: playersWithSummoners
-          }
-        })
-      )
-
-      return matchesWithSummoners
+      return this.enrichMatchesWithSummoners(matches as unknown as Match[])
     } catch (error) {
       console.error('Failed to fetch matches with summoners:', error)
+      throw error
+    }
+  }
+
+  async getRecentMatchesWithSummonersPaginated(limit: number = 10, page: number = 1): Promise<{ matches: Match[]; total: number; trackedLastWeek: number }> {
+    if (!this.db) {
+      throw new Error('Database not connected. Call connect() first.')
+    }
+
+    try {
+      const safeLimit = Math.max(1, Math.min(50, limit))
+      const safePage = Math.max(1, page)
+      const skip = (safePage - 1) * safeLimit
+      const collection = this.db.collection('matches')
+
+      const oneWeekAgo = new Date()
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+
+      const [rawMatches, total, trackedLastWeek] = await Promise.all([
+        collection
+          .find({})
+          .sort({ timestamp: -1 })
+          .skip(skip)
+          .limit(safeLimit)
+          .toArray(),
+        collection.countDocuments({}),
+        collection.countDocuments({
+          timestamp: { $gte: oneWeekAgo.toISOString() },
+          num_tracked_summoners: { $gt: 0 },
+        }),
+      ])
+
+      const matches = await this.enrichMatchesWithSummoners(rawMatches as unknown as Match[])
+      return { matches, total, trackedLastWeek }
+    } catch (error) {
+      console.error('Failed to fetch paginated matches with summoners:', error)
       throw error
     }
   }
@@ -327,35 +357,14 @@ class MongoDBService {
     }
 
     try {
-      const collection = this.db.collection('matches')
-      const matches = await collection
+      const matches = await this.db.collection('matches')
         .find({
           'players.puuid': puuid
         })
         .sort({ timestamp: -1 })
         .toArray()
 
-      // Fetch summoner information for all players
-      const matchesWithSummoners = await Promise.all(
-        (matches as unknown as Match[]).map(async (match) => {
-          const playersWithSummoners = await Promise.all(
-            match.players.map(async (player) => {
-              const summoner = await this.getSummonerByPuuid(player.puuid)
-              return {
-                ...player,
-                summoner_name: summoner?.summoner_name || player.summoner_name,
-                real_name: summoner?.real_name || player.real_name
-              }
-            })
-          )
-          return {
-            ...match,
-            players: playersWithSummoners
-          }
-        })
-      )
-
-      return matchesWithSummoners
+      return this.enrichMatchesWithSummoners(matches as unknown as Match[])
     } catch (error) {
       console.error('Failed to fetch matches by player PUUID:', error)
       throw error

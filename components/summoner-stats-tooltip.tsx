@@ -1,7 +1,6 @@
 "use client"
 
-import React from 'react'
-import { getPositionDisplay, formatNumber } from '@/lib/game-utils'
+import { getPositionDisplay, formatNumber } from "@/lib/game-utils"
 
 interface SummonerStats {
   championWinrate: number
@@ -20,19 +19,15 @@ interface CircularProgressProps {
   games?: number
 }
 
-// Utility function moved to @/lib/game-utils
-
 function CircularProgress({ percentage, size = 60, strokeWidth = 4, label, games }: CircularProgressProps) {
   const radius = (size - strokeWidth) / 2
   const circumference = radius * 2 * Math.PI
-  const strokeDasharray = circumference
   const strokeDashoffset = circumference - (percentage / 100) * circumference
 
-  // Color based on winrate
   const getColor = (rate: number) => {
-    if (rate >= 60) return '#10b981' // green
-    if (rate >= 50) return '#f59e0b' // yellow
-    return '#ef4444' // red
+    if (rate >= 60) return "#34d399"
+    if (rate >= 50) return "#fbbf24"
+    return "#fb7185"
   }
 
   const color = getColor(percentage)
@@ -40,21 +35,8 @@ function CircularProgress({ percentage, size = 60, strokeWidth = 4, label, games
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="relative" style={{ width: size, height: size }}>
-        <svg
-          width={size}
-          height={size}
-          className="transform -rotate-90"
-        >
-          {/* Background circle */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke="#374151"
-            strokeWidth={strokeWidth}
-            fill="transparent"
-          />
-          {/* Progress circle */}
+        <svg width={size} height={size} className="transform -rotate-90">
+          <circle cx={size / 2} cy={size / 2} r={radius} stroke="#334155" strokeWidth={strokeWidth} fill="transparent" />
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -62,25 +44,19 @@ function CircularProgress({ percentage, size = 60, strokeWidth = 4, label, games
             stroke={color}
             strokeWidth={strokeWidth}
             fill="transparent"
-            strokeDasharray={strokeDasharray}
+            strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
             className="transition-all duration-300 ease-in-out"
           />
         </svg>
-        {/* Percentage text */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-xs font-semibold text-white">
-            {formatNumber(percentage)}%
-          </span>
+          <span className="text-xs font-semibold text-white">{formatNumber(percentage)}%</span>
         </div>
       </div>
-      {/* Label */}
       <div className="text-center">
-        <div className="text-xs text-gray-300 font-medium">{label}</div>
-        {games !== undefined && (
-          <div className="text-xs text-gray-500">{games} games</div>
-        )}
+        <div className="text-xs font-medium text-slate-200">{label}</div>
+        {games !== undefined ? <div className="text-xs text-slate-300/60">{games} games</div> : null}
       </div>
     </div>
   )
@@ -94,63 +70,29 @@ interface SummonerStatsTooltipProps {
   position: string
 }
 
-export default function SummonerStatsTooltip({ 
-  stats, 
-  loading, 
-  error, 
-  championName, 
-  position 
-}: SummonerStatsTooltipProps) {
+export default function SummonerStatsTooltip({ stats, loading, error, championName, position }: SummonerStatsTooltipProps) {
   if (error) {
-    return (
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
-        <div className="text-red-400 text-sm">Error cargando estadísticas</div>
-      </div>
-    )
+    return <div className="glass-card rounded-xl border-white/20 p-3 text-sm text-rose-300">Error cargando estadísticas</div>
   }
 
   if (loading || !stats) {
     return (
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 shadow-lg">
-        <div className="flex items-center gap-2">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-          <div className="text-gray-300 text-sm">Cargando estadísticas...</div>
-        </div>
+      <div className="glass-card flex items-center gap-2 rounded-xl border-white/20 p-4">
+        <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-cyan-400" />
+        <div className="text-sm text-slate-200/80">Cargando estadísticas...</div>
       </div>
     )
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 shadow-lg min-w-[280px]">
-      <div className="text-white text-sm font-semibold mb-3 text-center">
-        Winrate (Últimos 15 Días)
+    <div className="glass-card min-w-[280px] rounded-xl border-white/20 p-4 shadow-lg">
+      <div className="mb-3 text-center text-sm font-semibold text-white">Winrate (últimos 15 días)</div>
+      <div className="flex items-start justify-around gap-4">
+        <CircularProgress percentage={stats.championWinrate} label={championName} games={stats.championGames} />
+        <CircularProgress percentage={stats.overallWinrate} label="General" games={stats.totalGames} />
+        <CircularProgress percentage={stats.positionWinrate} label={getPositionDisplay(position)} games={stats.positionGames} />
       </div>
-      
-      <div className="flex justify-around items-start gap-4">
-        <CircularProgress
-          percentage={stats.championWinrate}
-          label={championName}
-          games={stats.championGames}
-        />
-        
-        <CircularProgress
-          percentage={stats.overallWinrate}
-          label="General"
-          games={stats.totalGames}
-        />
-        
-        <CircularProgress
-          percentage={stats.positionWinrate}
-          label={getPositionDisplay(position)}
-          games={stats.positionGames}
-        />
-      </div>
-      
-      {stats.totalGames === 0 && (
-        <div className="text-center text-gray-400 text-xs mt-2">
-          No se encontraron partidas en los últimos 15 días
-        </div>
-      )}
+      {stats.totalGames === 0 ? <div className="mt-2 text-center text-xs text-slate-300/70">No se encontraron partidas recientes</div> : null}
     </div>
   )
 }

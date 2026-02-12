@@ -1,12 +1,11 @@
 "use client"
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Trophy, Zap, Target } from 'lucide-react'
-import Image from 'next/image'
-import { getPositionBgColor, getPositionDisplay, getChampionImageUrl, formatNumber, calculateKDA } from '@/lib/game-utils'
+import Image from "next/image"
+import { getChampionImageUrl, getPositionBgColor, getPositionDisplay, formatNumber, calculateKDA } from "@/lib/game-utils"
 
 interface PlayerStats {
   puuid: string
@@ -23,8 +22,6 @@ interface PlayerStats {
   mainRole: string | null
 }
 
-// Utility functions moved to @/lib/game-utils
-
 export default function PlayersClient() {
   const [players, setPlayers] = useState<PlayerStats[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,14 +31,12 @@ export default function PlayersClient() {
   useEffect(() => {
     const fetchPlayers = async () => {
       try {
-        const response = await fetch('/api/players')
-        if (!response.ok) {
-          throw new Error('Failed to fetch players')
-        }
+        const response = await fetch("/api/players")
+        if (!response.ok) throw new Error("Failed to fetch players")
         const data = await response.json()
-        setPlayers(data.players)
+        setPlayers(data.players || [])
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred')
+        setError(err instanceof Error ? err.message : "An error occurred")
       } finally {
         setLoading(false)
       }
@@ -50,151 +45,84 @@ export default function PlayersClient() {
     fetchPlayers()
   }, [])
 
-  const handlePlayerClick = (puuid: string) => {
-    router.push(`/profile/${puuid}`)
-  }
+  const topWinrate = useMemo(() => Math.max(0, ...players.map((player) => player.winRate)), [players])
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-950 text-white p-4 pt-8">
-        <div className="max-w-6xl mx-auto space-y-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold">Jugadores</h1>
-          </div>
-          <div className="flex justify-center items-center py-20">
-            <div className="text-gray-400">Cargando jugadores...</div>
-          </div>
-        </div>
-      </div>
-    )
+    return <div className="page-wrap"><div className="glass-shell p-6 text-center text-slate-200/80">Cargando jugadores...</div></div>
   }
 
   if (error) {
-    return (
-      <div className="min-h-screen bg-gray-950 text-white p-4 pt-8">
-        <div className="max-w-6xl mx-auto space-y-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold">Jugadores</h1>
-          </div>
-          <div className="flex justify-center items-center py-20">
-            <div className="text-red-400">Error: {error}</div>
-          </div>
-        </div>
-      </div>
-    )
+    return <div className="page-wrap"><div className="glass-shell p-6 text-center text-rose-300">Error: {error}</div></div>
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-4 md:p-6 pt-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Jugadores de Gordos</h1>
-          <p className="text-gray-400 mt-2">Mostrando estadísticas de los últimos 14 días</p>
-        </div>
+    <div className="page-wrap space-y-6">
+      <section className="glass-shell p-6">
+        <p className="glass-chip mb-4">Roster</p>
+        <h1 className="title-gradient text-4xl font-semibold">Jugadores de Gordos</h1>
+        <p className="mt-2 text-sm text-slate-200/80">Estadísticas de los últimos 14 días. Click en cualquier jugador para abrir su perfil.</p>
+      </section>
 
-        {/* Players Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-          {players.map((player) => {
-            const kdaRatio = player.averageKDA.deaths > 0 
-              ? ((player.averageKDA.kills + player.averageKDA.assists) / player.averageKDA.deaths)
-              : (player.averageKDA.kills + player.averageKDA.assists)
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {players.map((player) => {
+          const kda = calculateKDA(player.averageKDA.kills, player.averageKDA.deaths, player.averageKDA.assists)
+          const isLeader = player.winRate === topWinrate && player.totalMatches > 0
+          return (
+            <Card
+              key={player.puuid}
+              className="glass-shell cursor-pointer border-white/15 bg-white/[0.06] transition-all duration-200 hover:-translate-y-1"
+              onClick={() => router.push(`/profile/${player.puuid}`)}
+            >
+              <CardContent className="p-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="h-12 w-12 overflow-hidden rounded-full border border-white/20 bg-black/20">
+                    {player.mostPlayedChampion ? (
+                      <Image
+                        src={getChampionImageUrl(player.mostPlayedChampion)}
+                        alt={player.mostPlayedChampion}
+                        width={48}
+                        height={48}
+                        className="block h-full w-full scale-110 object-cover"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-white">{player.summoner_name}</div>
+                    {player.mainRole ? (
+                      <Badge className={`${getPositionBgColor(player.mainRole)} mt-1 border-0 text-[10px] text-white`}>
+                        {getPositionDisplay(player.mainRole)}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  {isLeader ? <span className="glass-chip border-emerald-300/45 bg-emerald-300/20 text-emerald-100">Top WR</span> : null}
+                </div>
 
-            return (
-              <Card 
-                key={player.puuid} 
-                className="bg-gray-900 border-gray-800 hover:bg-gray-800 transition-colors cursor-pointer"
-                onClick={() => handlePlayerClick(player.puuid)}
-              >
-                <CardContent className="p-3">
-                  {/* Player Avatar & Name */}
-                  <div className="flex items-center gap-3 mb-2">
-                    <div 
-                      className="relative w-10 h-10 rounded-full overflow-hidden bg-gray-700"
-                      title={player.mostPlayedChampion ? `Campeón más jugado: ${player.mostPlayedChampion}` : ''}
-                    >
-                      {player.mostPlayedChampion ? (
-                        <Image
-                          src={getChampionImageUrl(player.mostPlayedChampion)}
-                          alt={player.mostPlayedChampion}
-                          width={40}
-                          height={40}
-                          className="object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement
-                            target.src = '/placeholder.svg'
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400">
-                          <Target className="w-5 h-5" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white truncate text-sm">{player.summoner_name}</h3>
-                      {/* <p className="text-xs text-gray-400 truncate">{player.real_name}</p> */}
-                      {player.mainRole && (
-                        <Badge 
-                          className={`text-xs ${getPositionBgColor(player.mainRole)} text-white border-0 mt-1`}
-                          style={{ fontSize: '10px', padding: '2px 6px' }}
-                        >
-                          {getPositionDisplay(player.mainRole).toUpperCase()}
-                        </Badge>
-                      )}
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="glass-card p-2">
+                    <div className="text-[11px] uppercase tracking-[0.08em] text-slate-300/70">Partidas</div>
+                    <div className="text-lg font-semibold text-white">{player.totalMatches}</div>
+                  </div>
+                  <div className="glass-card p-2">
+                    <div className="text-[11px] uppercase tracking-[0.08em] text-slate-300/70">Winrate</div>
+                    <div className={`text-lg font-semibold ${player.winRate >= 55 ? "text-emerald-200" : player.winRate >= 50 ? "text-amber-100" : "text-rose-200"}`}>
+                      {formatNumber(player.winRate)}%
                     </div>
                   </div>
+                </div>
 
-                  {/* Stats Row 1: Matches & Win Rate */}
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center gap-1 text-sm">
-                      <Trophy className="w-4 h-4 text-yellow-500" />
-                      <span className="text-gray-300">{player.totalMatches} partidas</span>
-                    </div>
-                    <Badge 
-                      variant="outline" 
-                      className={`text-xs ${
-                        player.winRate >= 60 ? 'border-green-500 text-green-400' :
-                        player.winRate >= 50 ? 'border-yellow-500 text-yellow-400' :
-                        'border-red-500 text-red-400'
-                      }`}
-                    >
-                      {formatNumber(player.winRate)}% WR
-                    </Badge>
+                <div className="mt-2 glass-card p-2 text-sm">
+                  <div className="mb-1 text-[11px] uppercase tracking-[0.08em] text-slate-300/70">KDA Promedio</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-100">
+                      {formatNumber(player.averageKDA.kills)}/{formatNumber(player.averageKDA.deaths)}/{formatNumber(player.averageKDA.assists)}
+                    </span>
+                    <span className="font-semibold text-cyan-100">{formatNumber(kda, 2)}</span>
                   </div>
-
-                  {/* Stats Row 2: KDA */}
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center gap-1 text-sm">
-                      <Zap className="w-4 h-4 text-blue-500" />
-                      <span className="text-gray-300">
-                        {formatNumber(player.averageKDA.kills)}/
-                      {formatNumber(player.averageKDA.deaths)}/
-                      {formatNumber(player.averageKDA.assists)}
-                      </span>
-                    </div>
-                    <Badge 
-                      variant="outline" 
-                      className={`text-xs ${
-                        kdaRatio >= 2 ? 'border-green-500 text-green-400' :
-                        kdaRatio >= 1.5 ? 'border-yellow-500 text-yellow-400' :
-                        'border-red-500 text-red-400'
-                      }`}
-                    >
-                      {formatNumber(calculateKDA(player.averageKDA.kills, player.averageKDA.deaths, player.averageKDA.assists), 2)} KDA
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-
-        {players.length === 0 && (
-          <div className="flex justify-center items-center py-20">
-            <div className="text-gray-400">No se encontraron jugadores con partidas en los últimos 14 días</div>
-          </div>
-        )}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     </div>
   )

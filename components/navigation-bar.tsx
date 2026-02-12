@@ -19,27 +19,27 @@ export default function NavigationBar() {
   }
 
   return (
-    <nav className="bg-gray-950 border-b border-gray-800 px-4 md:px-6 py-3">
-      <div className="max-w-6xl mx-auto flex items-center justify-between">
+    <nav className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/50 px-4 py-3 backdrop-blur-xl md:px-6">
+      <div className="mx-auto flex max-w-6xl items-center justify-between">
         {/* Logo */}
-        <div className="flex items-center cursor-pointer" onClick={() => handleNavigation('/')}>
+        <div className="flex cursor-pointer items-center gap-3" onClick={() => handleNavigation('/')}>
           <Image
-            src="/assets/img/logo.png"
+            src="/logo.png"
             alt="Gordos Tracker Logo"
             width={40}
             height={40}
-            className="mr-3"
+            className="rounded-xl shadow-lg shadow-cyan-500/20"
           />
-          <span className="text-white text-xl font-bold">Gordos Tracker</span>
+          <span className="block text-lg font-semibold tracking-wide text-white">Gordos Tracker</span>
         </div>
 
         {/* Navigation Menu */}
-        <div className="flex items-center space-x-6">
+        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
           <button
-            className={`text-white transition-all duration-200 px-2 py-1 ${
+            className={`rounded-xl px-4 py-2 text-sm text-white transition-all duration-200 ${
               isActive('/') 
-                ? 'font-bold underline underline-offset-4' 
-                : 'hover:font-bold'
+                ? 'bg-cyan-400/20 font-semibold shadow-[inset_0_0_0_1px_rgba(34,211,238,0.4)]' 
+                : 'hover:bg-white/10'
             }`}
             onClick={() => handleNavigation('/')}
           >
@@ -47,17 +47,17 @@ export default function NavigationBar() {
           </button>
           
           <button
-            className="text-white hover:font-bold transition-all duration-200 px-2 py-1 cursor-not-allowed opacity-60"
+            className="cursor-not-allowed rounded-xl px-4 py-2 text-sm text-white/50"
             disabled
           >
             Ranking
           </button>
           
           <button
-            className={`text-white transition-all duration-200 px-2 py-1 ${
+            className={`rounded-xl px-4 py-2 text-sm text-white transition-all duration-200 ${
               isActive('/players') 
-                ? 'font-bold underline underline-offset-4' 
-                : 'hover:font-bold'
+                ? 'bg-cyan-400/20 font-semibold shadow-[inset_0_0_0_1px_rgba(34,211,238,0.4)]' 
+                : 'hover:bg-white/10'
             }`}
             onClick={() => handleNavigation('/players')}
           >

@@ -1,11 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { MatchPlayer } from "@/lib/mongodb"
-import { useSummonerStats } from "@/hooks/use-summoner-stats"
-import SummonerStatsTooltip from "@/components/summoner-stats-tooltip"
-import { getPositionColor, getPositionDisplay, formatGold, formatDamage, formatNumber, getChampionImageUrl, getItemImageUrl } from '@/lib/game-utils'
+import {
+  calculateKDA,
+  formatDamage,
+  formatGold,
+  formatNumber,
+  getChampionImageUrl,
+  getItemImageUrl,
+  getPositionColor,
+  getPositionDisplay,
+} from "@/lib/game-utils"
 
 interface MatchPlayersProps {
   players: MatchPlayer[]
@@ -22,837 +29,279 @@ interface MatchPlayersProps {
 }
 
 function getPlayerName(player: MatchPlayer): string {
-  return player.summoner_name || player.riot_id_game_name || 'Desconocido'
+  return player.summoner_name || player.riot_id_game_name || "Desconocido"
 }
 
-// Utility functions moved to @/lib/game-utils
-
-// Map stat labels to their corresponding filter values
-const filterableStats = {
-  'Oro Ganado': 'oro',
-  'Oro ganado': 'oro',
-  'Daño Total': 'damage',
-  'Daño total': 'damage',
-  'Curación Total': 'healing',
-  'Curación total': 'healing',
-  'Tiempo Muerto': 'tiempo_muerto',
-  'Tiempo muerto': 'tiempo_muerto',
-  'Minions Eliminados': 'minions',
-  'Minions eliminados': 'minions',
-  'CC Aplicado': 'cc',
-  'CC aplicado': 'cc',
-  'Puntuación de Visión': 'vision',
-  'Puntuación de visión': 'vision'
-}
-
-function isFilterableStat(label: string): boolean {
-  return label in filterableStats
-}
-
-function getStatKey(label: string): string | undefined {
-  return filterableStats[label as keyof typeof filterableStats]
-}
-
-// Helper component for rendering stat rows
-function StatRow({ label, value, selectedStat, onStatChange }: {
-  label: string
-  value: string
-  selectedStat?: string
-  onStatChange?: (stat: string) => void
-}) {
-  const isFilterable = isFilterableStat(label)
-  const statKey = getStatKey(label)
-  const isSelected = statKey === selectedStat
-  
-  const handleClick = () => {
-    if (isFilterable && statKey && onStatChange) {
-      // Always set the filter to this stat when clicked, no toggle functionality
-      onStatChange(statKey)
+function readNumber(player: MatchPlayer, ...fields: string[]): number {
+  const unknownPlayer = player as unknown as Record<string, unknown>
+  for (const field of fields) {
+    const value = unknownPlayer[field]
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value
     }
   }
-  
-  const labelClasses = isFilterable 
-    ? isSelected 
-      ? 'text-blue-400 cursor-pointer hover:text-blue-300 font-semibold'
-      : 'text-gray-300 cursor-pointer hover:text-white'
-    : 'text-gray-400'
-    
-  const valueClasses = isFilterable 
-    ? isSelected 
-      ? 'text-blue-400 cursor-pointer hover:text-blue-300 font-semibold'
-      : 'text-gray-100 cursor-pointer hover:text-white'
-    : 'text-white'
-  
-  return (
-    <div className="flex justify-between">
-      <span className={labelClasses} onClick={handleClick}>{label}:</span>
-      <span className={valueClasses} onClick={handleClick}>{value}</span>
-    </div>
-  )
+  return 0
 }
 
-export default function MatchPlayers({ 
-  players, 
-  showOnlyMvp = false, 
-  onPlayerClick, 
+function formatSeconds(value: number): string {
+  const minutes = Math.floor(value / 60)
+  const seconds = Math.floor(value % 60)
+  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`
+}
+
+export default function MatchPlayers({
+  players,
+  showOnlyMvp = false,
+  onPlayerClick,
   onProfileClick,
   matchId,
-  showTeams = false,
   highlightedSummonerName,
   match,
-  selectedStat = 'damage',
+  selectedStat,
   onStatChange,
-  onTooltipChange
+  onTooltipChange,
 }: MatchPlayersProps) {
-  const { stats, loading, error, handleHoverStart, handleHoverEnd } = useSummonerStats()
-  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
-  const [hoveredPlayer, setHoveredPlayer] = useState<MatchPlayer | null>(null)
-  // Filter players if showOnlyMvp is true
-  const displayPlayers = showOnlyMvp 
-    ? players.filter(player => 
-        player.mvp_score !== undefined && 
-        player.mvp_score !== null && 
-        player.mvp_score > 0
-      )
-    : players
+  const displayPlayers = useMemo(() => {
+    const base = showOnlyMvp ? players.filter((player) => (player.mvp_score || 0) > 0) : players
+    return [...base].sort((a, b) => (b.mvp_score || 0) - (a.mvp_score || 0))
+  }, [players, showOnlyMvp])
 
-  // Group players by team if showTeams is true
-  const team1Players = showTeams ? displayPlayers.filter(p => p.team_id === 100) : []
-  const team2Players = showTeams ? displayPlayers.filter(p => p.team_id === 200) : []
+  const highestMvpScore = useMemo(() => {
+    if (!displayPlayers.length) return 0
+    return Math.max(...displayPlayers.map((player) => player.mvp_score || 0))
+  }, [displayPlayers])
 
-  const handlePlayerClick = (player: MatchPlayer) => {
-    if (onPlayerClick && matchId && player.mvp_score !== undefined && player.mvp_score > 0) {
-      // Toggle functionality: if this player is already highlighted, unhighlight them
-      const summonerName = player.summoner_name || ''
-      if (highlightedSummonerName === summonerName) {
-        onPlayerClick(matchId, '') // Clear highlight by passing empty string
-      } else {
-        onPlayerClick(matchId, summonerName) // Set highlight
-      }
-    }
-  }
-
-  const handleSummonerHover = (player: MatchPlayer, event: React.MouseEvent) => {
-    // Only show tooltip for players with mvp_score
-    if (player.mvp_score === undefined || player.mvp_score === null || player.mvp_score <= 0) {
-      return
-    }
-    
-    // Only show tooltip for specific game types: Normal Draft (400), Ranked Solo (420), Ranked Flex (440)
-    if (match?.queue_id && ![400, 420, 440].includes(match.queue_id)) {
-      return
-    }
-    
-    // Don't show tooltip if position is empty (common in non-ranked games)
-    if (!player.position || player.position.trim() === '') {
-      return
-    }
-    
+  const handleTooltipEnter = (event: React.MouseEvent, player: MatchPlayer) => {
+    if (!onTooltipChange) return
+    if (!player.position || player.position.trim() === "") return
     const rect = event.currentTarget.getBoundingClientRect()
-    const position = {
-      x: rect.left + rect.width / 2,
-      y: rect.top - 10
-    }
-    setTooltipPosition(position)
-    setHoveredPlayer(player)
-    onTooltipChange?.(position, player)
-    handleHoverStart(player.puuid, player.champion_name, player.position)
+    onTooltipChange(
+      {
+        x: rect.left + rect.width / 2,
+        y: rect.top - 10,
+      },
+      player
+    )
   }
 
-  const handleSummonerLeave = () => {
-    // Only clear if tooltip was actually shown
-    if (tooltipPosition) {
-      setTooltipPosition(null)
-      setHoveredPlayer(null)
-      onTooltipChange?.(null, null)
-      handleHoverEnd()
-    }
+  const handleTooltipLeave = () => {
+    onTooltipChange?.(null, null)
   }
 
-  if (showTeams) {
-    // Calculate highest MVP score for star badge
-    const highestMvpScore = Math.max(...displayPlayers.map(p => p.mvp_score ?? 0))
-    
+  if (!displayPlayers.length) {
     return (
-      <div className="space-y-4">
-        {/* Team 1 (Blue) */}
-        <div>
-          <h3 className="text-blue-400 font-semibold mb-2">Equipo Azul</h3>
-          <div className="space-y-1">
-            {team1Players.map((player, index) => (
-              <div key={index}>
-                <div
-                  className={`flex items-center p-2 ${player.summoner_name === highlightedSummonerName ? 'bg-gray-800 rounded-t-lg' : 'bg-gray-800/50 rounded-lg'} ${
-                    onPlayerClick && player.mvp_score !== undefined && player.mvp_score > 0 ? 'hover:bg-gray-800 transition-colors cursor-pointer' : ''
-                  }`}
-                  onClick={() => handlePlayerClick(player)}
-                >
-                {/* Left section - 30% width */}
-                <div className="w-[30%] flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    <img
-                      src={getChampionImageUrl(player.champion_name)}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null
-                        e.currentTarget.src = `/placeholder.svg?height=40&width=40&text=${player.champion_name}`
-                      }}
-                      alt={player.champion_name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {player.mvp_score !== undefined && player.mvp_score > 0 && onProfileClick && (
-                        <span 
-                          className="text-blue-400 cursor-pointer hover:text-blue-300" 
-                          onClick={(e) => onProfileClick(player.puuid, e)}
-                        >
-                          👤
-                        </span>
-                      )}
-                      <span 
-                        className={`font-medium truncate ${player.mvp_score !== undefined && player.mvp_score > 0 ? 'text-white cursor-pointer hover:underline' : 'text-gray-500'}`}
-                        onClick={player.mvp_score !== undefined && player.mvp_score > 0 && onProfileClick ? (e) => onProfileClick(player.puuid, e) : undefined}
-                        onMouseEnter={(e) => handleSummonerHover(player, e)}
-                        onMouseLeave={handleSummonerLeave}
-                      >
-                        {getPlayerName(player)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-gray-400 text-sm truncate">{player.champion_name}</div>
-                      <span className={`text-xs font-medium uppercase ${getPositionColor(player.position)}`}>
-                        {getPositionDisplay(player.position)}
-                      </span>
-                      {player.mvp_score !== undefined && player.mvp_score > 0 && (
-                        <span className="text-purple-400 text-xs font-medium">
-                          MVP Score: {formatNumber(player.mvp_score, 2)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Middle section - Items */}
-                <div className="flex items-center gap-1 ml-4">
-                  {[player.item_0, player.item_1, player.item_2, player.item_3, player.item_4, player.item_5].map((itemId, itemIndex) => (
-                    <div key={itemIndex} className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center overflow-hidden">
-                      {itemId && itemId > 0 ? (
-                        <img
-                          src={getItemImageUrl(itemId)}
-                          onError={(e) => {
-                            e.currentTarget.onerror = null
-                            e.currentTarget.src = `/placeholder.svg?height=32&width=32&text=${itemId}`
-                          }}
-                          alt={`Item ${itemId}`}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-600"></div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Right section - Stats */}
-                <div className="flex items-center gap-6 ml-auto">
-                  {/* Star MVP Badge - positioned before KDA */}
-                  {player.mvp_score === highestMvpScore && player.mvp_score !== undefined && player.mvp_score > 0 && (
-                    <div className="flex items-center mr-4">
-                      <Badge className="bg-yellow-500 text-black text-sm font-bold px-3 py-1 h-7">
-                        ⭐ MVP
-                      </Badge>
-                    </div>
-                  )}
-                 <div className="flex items-center gap-1 text-sm">
-                   <span className="text-green-400 font-bold">{player.kills}</span>
-                   <span className="text-gray-400">/</span>
-                   <span className="text-red-400 font-bold">{player.deaths}</span>
-                   <span className="text-gray-400">/</span>
-                   <span className="text-yellow-400 font-bold">{player.assists}</span>
-                 </div>
-
-                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-400">
-                    <div className="flex items-center gap-1">
-                      <span className="text-yellow-500">💰</span>
-                      <span>{formatGold(player.gold_earned)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-red-500">⚔️</span>
-                      <span>{formatDamage(player.total_dmg_dealt_champions)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-blue-400">👁️</span>
-                      <span>{player.vision_score}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-green-400">💚</span>
-                      <span>{formatDamage(player.healing_done)}</span>
-                    </div>
-                  </div>
-               </div>
-                </div>
-                
-                {/* Expanded section when highlighted */}
-                {player.summoner_name === highlightedSummonerName && (
-                  <div className="p-4 bg-gray-800 rounded-b-lg border-l-4 border-blue-400">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Multi-kills section */}
-                      <div>
-                        <h4 className="text-white font-semibold mb-2">Multi-kills</h4>
-                        <div className="space-y-1">
-                          {player.quadra_kills > 0 && (
-                            <Badge className="bg-orange-600 text-white mr-2">
-                              QUADRA💀 x{player.quadra_kills}
-                            </Badge>
-                          )}
-                          {player.penta_kills > 0 && (
-                            <Badge className="bg-red-600 text-white">
-                              PENTA5💀 x{player.penta_kills}
-                            </Badge>
-                          )}
-                          <div className="mt-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">Mayor Multi Kill:</span>
-                              <span className="text-white">{player.largest_multi_kill}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Combat Stats */}
-                      <div>
-                        <h4 className="text-white font-semibold mb-2">Estadísticas de Combate</h4>
-                        <div className="space-y-1 text-sm">
-                          <StatRow 
-                            label="Oro Ganado" 
-                            value={`${formatNumber(player.gold_earned / 1000, 3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Daño Total" 
-                            value={`${formatNumber(player.total_dmg_dealt_champions / 1000, 3)}⚔️`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Curación Total" 
-                            value={`${formatNumber(player.healing_done / 1000, 3)}💚`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Tiempo Muerto" 
-                            value={`${Math.floor(player.total_time_spent_dead / 60)}m ${player.total_time_spent_dead % 60}s (${formatNumber((player.total_time_spent_dead / (match?.game_duration_seconds || 1)) * 100)}%)`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Minions Eliminados" 
-                            value={`${player.total_minions_killed}🐛 (${formatNumber(player.total_minions_killed / ((match?.game_duration_seconds || 1) / 60))}/m)`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="CC Aplicado" 
-                            value={`${Math.floor(player.total_time_cc_dealt / 60)}m ${player.total_time_cc_dealt % 60}s`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Mayor Tiempo Vivo:</span>
-                            <span className="text-white">{Math.floor(player.longest_time_spent_living / 60)}m {player.longest_time_spent_living % 60}s</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Vision Stats */}
-                      <div>
-                        <h4 className="text-white font-semibold mb-2">Estadísticas de Visión</h4>
-                        <div className="space-y-1 text-sm">
-                          <StatRow 
-                            label="Puntuación de Visión" 
-                            value={`${player.vision_score}`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Wards Destruidos:</span>
-                            <span className="text-white">{player.wards_killed}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Wards Colocados:</span>
-                            <span className="text-white">{player.wards_placed}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Team 2 (Red) */}
-        <div>
-          <h3 className="text-red-400 font-semibold mb-2">Equipo Rojo</h3>
-          <div className="space-y-1">
-            {team2Players.map((player, index) => (
-              <div key={index}>
-                <div
-                  className={`flex items-center p-2 ${player.summoner_name === highlightedSummonerName ? 'bg-gray-800 rounded-t-lg' : 'bg-gray-800/50 rounded-lg'} ${
-                    onPlayerClick && player.mvp_score !== undefined && player.mvp_score > 0 ? 'hover:bg-gray-800 transition-colors cursor-pointer' : ''
-                  }`}
-                  onClick={() => handlePlayerClick(player)}
-                >
-                {/* Left section - 30% width */}
-                <div className="w-[30%] flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    <img
-                      src={getChampionImageUrl(player.champion_name)}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null
-                        e.currentTarget.src = `/placeholder.svg?height=40&width=40&text=${player.champion_name}`
-                      }}
-                      alt={player.champion_name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {player.mvp_score !== undefined && player.mvp_score > 0 && onProfileClick && (
-                        <span 
-                          className="text-blue-400 cursor-pointer hover:text-blue-300" 
-                          onClick={(e) => onProfileClick(player.puuid, e)}
-                        >
-                          👤
-                        </span>
-                      )}
-                      <span 
-                        className={`font-medium truncate ${player.mvp_score !== undefined && player.mvp_score > 0 ? 'text-white cursor-pointer hover:underline' : 'text-gray-500'}`}
-                        onClick={player.mvp_score !== undefined && player.mvp_score > 0 && onProfileClick ? (e) => onProfileClick(player.puuid, e) : undefined}
-                        onMouseEnter={(e) => handleSummonerHover(player, e)}
-                        onMouseLeave={handleSummonerLeave}
-                      >
-                        {getPlayerName(player)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-gray-400 text-sm truncate">{player.champion_name}</div>
-                      <span className={`text-xs font-medium uppercase ${getPositionColor(player.position)}`}>
-                        {getPositionDisplay(player.position)}
-                      </span>
-                      {player.mvp_score !== undefined && player.mvp_score > 0 && (
-                        <span className="text-purple-400 text-xs font-medium">
-                          MVP Score: {formatNumber(player.mvp_score, 2)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Middle section - Items */}
-                <div className="flex items-center gap-1 ml-4">
-                  {[player.item_0, player.item_1, player.item_2, player.item_3, player.item_4, player.item_5].map((itemId, itemIndex) => (
-                    <div key={itemIndex} className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center overflow-hidden">
-                      {itemId && itemId > 0 ? (
-                        <img
-                          src={getItemImageUrl(itemId)}
-                          onError={(e) => {
-                            e.currentTarget.onerror = null
-                            e.currentTarget.src = `/placeholder.svg?height=32&width=32&text=${itemId}`
-                          }}
-                          alt={`Item ${itemId}`}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-600"></div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Right section - Stats */}
-                <div className="flex items-center gap-6 ml-auto">
-                  {/* Star MVP Badge - positioned before KDA */}
-                  {player.mvp_score === highestMvpScore && player.mvp_score !== undefined && player.mvp_score > 0 && (
-                    <div className="flex items-center mr-4">
-                      <Badge className="bg-yellow-500 text-black text-sm font-bold px-3 py-1 h-7">
-                        ⭐ MVP
-                      </Badge>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1 text-sm">
-                    <span className="text-green-400 font-bold">{player.kills}</span>
-                    <span className="text-gray-400">/</span>
-                    <span className="text-red-400 font-bold">{player.deaths}</span>
-                    <span className="text-gray-400">/</span>
-                    <span className="text-yellow-400 font-bold">{player.assists}</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-400">
-                    <div className="flex items-center gap-1">
-                      <span className="text-yellow-500">💰</span>
-                      <span>{formatGold(player.gold_earned)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-red-500">⚔️</span>
-                      <span>{formatDamage(player.total_dmg_dealt_champions)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-blue-400">👁️</span>
-                      <span>{player.vision_score}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-green-400">💚</span>
-                      <span>{formatDamage(player.healing_done)}</span>
-                    </div>
-                  </div>
-                </div>
-                </div>
-                
-                {/* Expanded section when highlighted */}
-                {player.summoner_name === highlightedSummonerName && (
-                  <div className="p-4 bg-gray-800 rounded-b-lg border-l-4 border-red-400">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Multi-kills section */}
-                      <div>
-                        <h4 className="text-white font-semibold mb-2">Multi-kills</h4>
-                        <div className="space-y-1">
-                          {player.quadra_kills > 0 && (
-                            <Badge className="bg-orange-600 text-white mr-2">
-                              STARS 4💀 x{player.quadra_kills}
-                            </Badge>
-                          )}
-                          {player.penta_kills > 0 && (
-                            <Badge className="bg-red-600 text-white">
-                              STARS 5💀 x{player.penta_kills}
-                            </Badge>
-                          )}
-                          <div className="mt-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">Mayor Multi Kill:</span>
-                              <span className="text-white">{player.largest_multi_kill}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Combat Stats */}
-                      <div>
-                        <h4 className="text-white font-semibold mb-2">Estadísticas de combate</h4>
-                        <div className="space-y-1 text-sm">
-                          <StatRow 
-                            label="Oro ganado" 
-                            value={`${formatNumber(player.gold_earned / 1000, 3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Daño total" 
-                            value={`${formatNumber(player.total_dmg_dealt_champions / 1000, 3)}⚔️`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Curación total" 
-                            value={`${formatNumber(player.healing_done / 1000, 3)}💚`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Tiempo muerto" 
-                            value={`${Math.floor(player.total_time_spent_dead / 60)}m ${player.total_time_spent_dead % 60}s (${formatNumber((player.total_time_spent_dead / (match?.game_duration_seconds || 1)) * 100)}%)`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Minions eliminados" 
-                            value={`${player.total_minions_killed}🐛 (${formatNumber(player.total_minions_killed / ((match?.game_duration_seconds || 1) / 60))}/m)`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="CC aplicado" 
-                            value={`${Math.floor(player.total_time_cc_dealt / 60)}m ${player.total_time_cc_dealt % 60}s`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Mayor tiempo vivo:</span>
-                            <span className="text-white">{Math.floor(player.longest_time_spent_living / 60)}m {player.longest_time_spent_living % 60}s</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Vision Stats */}
-                      <div>
-                        <h4 className="text-white font-semibold mb-2">Estadísticas de Visión</h4>
-                        <div className="space-y-1 text-sm">
-                          <StatRow 
-                            label="Puntuación de Visión" 
-                            value={`${player.vision_score}`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Wards Destruidos:</span>
-                            <span className="text-white">{player.wards_killed}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Wards Colocados:</span>
-                            <span className="text-white">{player.wards_placed}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-        
-
+      <div className="glass-card px-4 py-8 text-center text-sm text-slate-300/80">
+        {showOnlyMvp ? "No hay jugadores con MVP en esta partida." : "No hay jugadores para mostrar."}
       </div>
     )
   }
 
-  // Single list view (for match-history)
   return (
-    <div className="space-y-1">
-      {displayPlayers.length > 0 ? (
-        displayPlayers.map((player, index) => {
-          const highestMvpScore = Math.max(...displayPlayers.map(p => p.mvp_score ?? 0))
-          
-          return (
-            <div key={index}>
-              <div
-                className={`flex items-center p-2 ${player.summoner_name === highlightedSummonerName ? 'bg-gray-800 rounded-t-lg' : 'bg-gray-800/50 rounded-lg'} ${
-                  onPlayerClick && player.mvp_score !== undefined && player.mvp_score > 0 ? 'hover:bg-gray-800 transition-colors cursor-pointer' : ''
-                }`}
-                onClick={() => handlePlayerClick(player)}
-              >
-              {/* Left section - 30% width */}
-              <div className="w-[30%] flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+    <div className="space-y-3">
+      {displayPlayers.map((player) => {
+        const isHighlighted = highlightedSummonerName === player.summoner_name
+        const isMvp = (player.mvp_score || 0) > 0
+        const kda = calculateKDA(player.kills, player.deaths, player.assists)
+        const totalDamageTaken = readNumber(player, "total_damage_taken", "totalDamageTaken")
+        const damageToObjectives = readNumber(player, "damage_dealt_to_objectives", "damageDealtToObjectives")
+        const controlWards = readNumber(player, "control_wards_placed", "controlWardsPlaced")
+        const turretTakedowns = readNumber(player, "turret_takedowns", "turretTakedowns")
+        const neutralMinionsKilled = readNumber(player, "neutral_minions_killed", "neutralMinionsKilled")
+        const damageSelfMitigated = readNumber(player, "damage_self_mitigated", "damageSelfMitigated")
+        const killParticipation = readNumber(player, "kill_participation", "killParticipation")
+        const largestKillingSpree = readNumber(player, "largest_killing_spree", "largestKillingSpree")
+
+        const totalPings =
+          player.all_in_pings +
+          player.assist_me_pings +
+          player.basic_pings +
+          player.command_pings +
+          player.danger_pings +
+          player.enemy_missing_pings +
+          player.enemy_vision_pings +
+          player.get_back_pings +
+          player.hold_pings +
+          player.need_vision_pings +
+          player.on_my_way_pings +
+          player.push_pings +
+          player.retreat_pings +
+          player.vision_cleared_pings
+
+        return (
+          <div
+            key={`${player.match_id}-${player.puuid}-${player.champion_name}`}
+            className={`glass-shell p-4 transition-all duration-200 ${
+              isHighlighted ? "ring-2 ring-cyan-300/70" : "hover:ring-1 hover:ring-white/20"
+            }`}
+            onClick={() => {
+              if (!onPlayerClick || !matchId || !isMvp) return
+              onPlayerClick(matchId, getPlayerName(player))
+            }}
+          >
+            <div className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_auto_minmax(260px,1fr)_auto] lg:items-center">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 overflow-hidden rounded-full border border-white/20 bg-black/20">
                   <img
                     src={getChampionImageUrl(player.champion_name)}
-                    onError={(e) => {
-                      e.currentTarget.onerror = null
-                      e.currentTarget.src = `/placeholder.svg?height=40&width=40&text=${player.champion_name}`
-                    }}
                     alt={player.champion_name}
-                    className="w-full h-full object-cover"
+                    className="block h-full w-full scale-110 object-cover"
                   />
                 </div>
-
-                <div className="flex-1 min-w-0">
-                   <div className="flex items-center gap-2 flex-wrap">
-                     {player.mvp_score !== undefined && player.mvp_score > 0 && onProfileClick && (
-                       <span 
-                         className="text-blue-400 cursor-pointer hover:text-blue-300" 
-                         onClick={(e) => onProfileClick(player.puuid, e)}
-                       >
-                         👤
-                       </span>
-                     )}
-                     <span 
-                       className={`font-medium truncate ${player.mvp_score !== undefined && player.mvp_score > 0 ? 'text-white cursor-pointer hover:underline' : 'text-gray-500'}`}
-                       onClick={player.mvp_score !== undefined && player.mvp_score > 0 && onProfileClick ? (e) => onProfileClick(player.puuid, e) : undefined}
-                       onMouseEnter={(e) => handleSummonerHover(player, e)}
-                       onMouseLeave={handleSummonerLeave}
-                     >
-                       {getPlayerName(player)}
-                     </span>
-                   </div>
-                   <div className="flex items-center gap-2">
-                     <div className="text-gray-400 text-sm truncate">{player.champion_name}</div>
-                     <span className={`text-xs font-medium uppercase ${getPositionColor(player.position)}`}>
-                       {getPositionDisplay(player.position)}
-                     </span>
-                     {player.mvp_score !== undefined && player.mvp_score > 0 && (
-                        <span className="text-purple-400 text-xs font-medium">
-                          MVP Score: {formatNumber(player.mvp_score, 2)}
-                        </span>
-                      )}
-                   </div>
-                 </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      className={`truncate text-left font-semibold ${isMvp ? "text-white" : "text-slate-300"}`}
+                      onClick={(event) => {
+                        if (!onProfileClick || !isMvp) return
+                        onProfileClick(player.puuid, event)
+                      }}
+                      onMouseEnter={(event) => handleTooltipEnter(event, player)}
+                      onMouseLeave={handleTooltipLeave}
+                    >
+                      {getPlayerName(player)}
+                    </button>
+                  </div>
+                  <div className="text-xs text-slate-300/75">
+                    <span className={`mr-1 font-semibold ${getPositionColor(player.position)}`}>
+                      {getPositionDisplay(player.position)}
+                    </span>
+                    <span>{player.champion_name}</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Middle section - Items */}
-              <div className="flex items-center gap-1 ml-4">
-                {[player.item_0, player.item_1, player.item_2, player.item_3, player.item_4, player.item_5].map((itemId, itemIndex) => (
-                  <div key={itemIndex} className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center overflow-hidden">
-                    {itemId && itemId > 0 ? (
-                      <img
-                        src={getItemImageUrl(itemId)}
-                        onError={(e) => {
-                          e.currentTarget.onerror = null
-                          e.currentTarget.src = `/placeholder.svg?height=32&width=32&text=${itemId}`
-                        }}
-                        alt={`Item ${itemId}`}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-600"></div>
-                    )}
+              <div className="flex items-center gap-1 overflow-x-auto lg:justify-start">
+                {[player.item_0, player.item_1, player.item_2, player.item_3, player.item_4, player.item_5].map((itemId, index) => (
+                  <div key={`${player.puuid}-${index}`} className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-white/15 bg-black/30">
+                    {itemId > 0 ? (
+                      <img src={getItemImageUrl(itemId)} alt={`item-${itemId}`} className="h-full w-full object-cover" />
+                    ) : null}
                   </div>
                 ))}
+                <div className="ml-1 h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-cyan-300/30 bg-cyan-900/20">
+                  {player.item_6 > 0 ? (
+                    <img src={getItemImageUrl(player.item_6)} alt={`item-${player.item_6}`} className="h-full w-full object-cover" />
+                  ) : null}
+                </div>
               </div>
 
-              {/* Right section - Stats */}
-               <div className="flex items-center gap-6 ml-auto">
-                 {/* Star MVP Badge - positioned before KDA */}
-                 {player.mvp_score === highestMvpScore && player.mvp_score !== undefined && player.mvp_score > 0 && (
-                   <div className="flex items-center mr-4">
-                     <Badge className="bg-yellow-500 text-black text-sm font-bold px-3 py-1 h-7">
-                       ⭐ MVP
-                     </Badge>
-                   </div>
-                 )}
-                <div className="flex items-center gap-1 text-sm">
-                  <span className="text-green-400 font-bold">{player.kills}</span>
-                  <span className="text-gray-400">/</span>
-                  <span className="text-red-400 font-bold">{player.deaths}</span>
-                  <span className="text-gray-400">/</span>
-                  <span className="text-yellow-400 font-bold">{player.assists}</span>
+              <div className="grid grid-cols-2 gap-3 text-right md:grid-cols-4 lg:justify-self-end">
+                <div>
+                  <div className="text-xs text-slate-300/70">K / D / A</div>
+                  <div className="text-sm font-semibold text-white">
+                    {player.kills}/{player.deaths}/{player.assists}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-300/70">KDA</div>
+                  <div className="text-sm font-semibold text-cyan-200">{formatNumber(kda, 2)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-300/70">Daño</div>
+                  <div className="text-sm font-semibold text-orange-200">{formatDamage(player.total_dmg_dealt_champions)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-300/70">Gold</div>
+                  <div className="text-sm font-semibold text-amber-200">{formatGold(player.gold_earned)}</div>
+                </div>
+              </div>
+
+              <div className="min-w-[120px] lg:justify-self-end">
+                {player.mvp_score > 0 ? (
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant="outline" className="border-cyan-300/35 bg-cyan-200/10 text-cyan-100">
+                      Score {formatNumber(player.mvp_score, 2)}
+                    </Badge>
+                    {isMvp && player.mvp_score === highestMvpScore ? (
+                      <Badge className="bg-amber-300/90 px-2 text-xs font-semibold text-slate-900">MVP</Badge>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {isHighlighted && (
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="glass-card p-3">
+                  <div className="mb-2 text-xs uppercase tracking-[0.12em] text-slate-300/70">Combate</div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between"><span className="text-slate-300/70">Daño total</span><span>{formatDamage(player.total_dmg_dealt)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">Daño recibido</span><span>{formatDamage(totalDamageTaken)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">Mitigado</span><span>{formatDamage(damageSelfMitigated)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">Racha maxima</span><span>{largestKillingSpree}</span></div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-400">
-                   <div className="flex items-center gap-1">
-                     <span className="text-yellow-500">💰</span>
-                     <span>{formatGold(player.gold_earned)}</span>
-                   </div>
-                   <div className="flex items-center gap-1">
-                     <span className="text-red-500">⚔️</span>
-                     <span>{formatDamage(player.total_dmg_dealt_champions)}</span>
-                   </div>
-                   <div className="flex items-center gap-1">
-                     <span className="text-blue-400">👁️</span>
-                     <span>{player.vision_score}</span>
-                   </div>
-                   <div className="flex items-center gap-1">
-                     <span className="text-green-400">💚</span>
-                     <span>{formatDamage(player.healing_done)}</span>
-                   </div>
-                 </div>
-              </div>
-               </div>
-               
-               {/* Expanded section when highlighted */}
-                {player.summoner_name === highlightedSummonerName && (
-                  <div className="p-4 bg-gray-800 rounded-b-lg border-l-4 border-purple-400">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Multi-kills section */}
-                      <div>
-                        <h4 className="text-white font-semibold mb-2">Multi-kills</h4>
-                        <div className="space-y-1">
-                          {player.quadra_kills > 0 && (
-                            <Badge className="bg-orange-600 text-white mr-2">
-                              STARS 4💀 x{player.quadra_kills}
-                            </Badge>
-                          )}
-                          {player.penta_kills > 0 && (
-                            <Badge className="bg-red-600 text-white">
-                              STARS 5💀 x{player.penta_kills}
-                            </Badge>
-                          )}
-                          <div className="mt-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">Mayor Multi Kill:</span>
-                              <span className="text-white">{player.largest_multi_kill}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Combat Stats */}
-                      <div>
-                        <h4 className="text-white font-semibold mb-2">Estadísticas de Combate</h4>
-                        <div className="space-y-1 text-sm">
-                          <StatRow 
-                            label="Oro Ganado" 
-                            value={`${formatNumber(player.gold_earned / 1000, 3)}💰 (${Math.round(player.gold_earned / ((match?.game_duration_seconds || 1) / 60))}/m)`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Daño Total" 
-                            value={`${formatNumber(player.total_dmg_dealt_champions / 1000, 3)}⚔️`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Curación Total" 
-                            value={`${formatNumber(player.healing_done / 1000, 3)}💚`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Tiempo Muerto" 
-                            value={`${Math.floor(player.total_time_spent_dead / 60)}m ${player.total_time_spent_dead % 60}s (${formatNumber((player.total_time_spent_dead / (match?.game_duration_seconds || 1)) * 100)}%)`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="Minions Eliminados" 
-                            value={`${player.total_minions_killed}🐛 (${formatNumber(player.total_minions_killed / ((match?.game_duration_seconds || 1) / 60))}/m)`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <StatRow 
-                            label="CC Aplicado" 
-                            value={`${Math.floor(player.total_time_cc_dealt / 60)}m ${player.total_time_cc_dealt % 60}s`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Mayor Tiempo Vivo:</span>
-                            <span className="text-white">{Math.floor(player.longest_time_spent_living / 60)}m {player.longest_time_spent_living % 60}s</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Vision Stats */}
-                      <div>
-                        <h4 className="text-white font-semibold mb-2">Estadísticas de Visión</h4>
-                        <div className="space-y-1 text-sm">
-                          <StatRow 
-                            label="Puntuación de Visión" 
-                            value={`${player.vision_score}`}
-                            selectedStat={selectedStat}
-                            onStatChange={onStatChange}
-                          />
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Wards Destruidos:</span>
-                            <span className="text-white">{player.wards_killed}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Wards Colocados:</span>
-                            <span className="text-white">{player.wards_placed}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                <div className="glass-card p-3">
+                  <div className="mb-2 text-xs uppercase tracking-[0.12em] text-slate-300/70">Objetivos</div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between"><span className="text-slate-300/70">Daño objetivos</span><span>{formatDamage(damageToObjectives)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">Torres</span><span>{turretTakedowns}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">Objetivos robados</span><span>{player.objectives_stolen}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">KP</span><span>{killParticipation ? `${formatNumber(killParticipation * 100)}%` : "-"}</span></div>
                   </div>
-                )}
-            </div>
-          )
-        })
-      ) : (
-        <div className="text-center py-8 text-gray-400">
-          {showOnlyMvp 
-            ? "No players with MVP scores found in this match."
-            : "No players found in this match."
-          }
-        </div>
-      )}
+                </div>
 
+                <div className="glass-card p-3">
+                  <div className="mb-2 text-xs uppercase tracking-[0.12em] text-slate-300/70">Visión y macro</div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between"><span className="text-slate-300/70">Visión score</span><span>{player.vision_score}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">Wards</span><span>{player.wards_placed}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">Control wards</span><span>{controlWards}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">CS jungle</span><span>{neutralMinionsKilled}</span></div>
+                  </div>
+                </div>
+
+                <div className="glass-card p-3">
+                  <div className="mb-2 text-xs uppercase tracking-[0.12em] text-slate-300/70">Ritmo y comunicaciones</div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between"><span className="text-slate-300/70">Pings totales</span><span>{totalPings}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">Tiempo muerto</span><span>{formatSeconds(player.total_time_spent_dead)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">CC aplicado</span><span>{formatSeconds(player.total_time_cc_dealt)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-300/70">Mayor tiempo vivo</span><span>{formatSeconds(player.longest_time_spent_living)}</span></div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isHighlighted && (
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <span className="glass-chip">Nivel {player.champion_level}</span>
+                <span className="glass-chip">
+                  Multi-kill max: {player.largest_multi_kill} {player.penta_kills > 0 ? `(Penta x${player.penta_kills})` : ""}
+                </span>
+                <button
+                  className={`glass-chip border-cyan-300/35 ${selectedStat === "damage" ? "bg-cyan-200/25 text-cyan-100" : ""}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onStatChange?.("damage")
+                  }}
+                >
+                  Resaltar dano
+                </button>
+                <button
+                  className={`glass-chip border-cyan-300/35 ${selectedStat === "oro" ? "bg-cyan-200/25 text-cyan-100" : ""}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onStatChange?.("oro")
+                  }}
+                >
+                  Resaltar oro
+                </button>
+                <button
+                  className={`glass-chip border-cyan-300/35 ${selectedStat === "vision" ? "bg-cyan-200/25 text-cyan-100" : ""}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onStatChange?.("vision")
+                  }}
+                >
+                  Resaltar vision
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

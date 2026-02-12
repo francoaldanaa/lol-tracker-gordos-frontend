@@ -3,12 +3,11 @@ import { mongodbService } from '@/lib/mongodb'
 
 export async function GET(request: NextRequest) {
   try {
-    // Connect to MongoDB
     await mongodbService.connect()
     
-    // Get query parameters
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '10')
+    const page = parseInt(searchParams.get('page') || '1')
     const matchId = searchParams.get('matchId')
     const playerPuuid = searchParams.get('playerPuuid')
     
@@ -22,11 +21,22 @@ export async function GET(request: NextRequest) {
       }
       matches = [match]
     } else if (playerPuuid) {
-      // Get matches by player PUUID
       matches = await mongodbService.getMatchesByPlayerPuuid(playerPuuid)
     } else {
-      // Get recent matches with summoner information
-      matches = await mongodbService.getRecentMatchesWithSummoners(limit)
+      const safeLimit = Math.max(1, Math.min(50, limit))
+      const safePage = Math.max(1, page)
+      const { matches: pagedMatches, total, trackedLastWeek } = await mongodbService.getRecentMatchesWithSummonersPaginated(safeLimit, safePage)
+      const totalPages = Math.max(1, Math.ceil(total / safeLimit))
+      return NextResponse.json({
+        matches: pagedMatches,
+        pagination: {
+          page: safePage,
+          limit: safeLimit,
+          total,
+          totalPages,
+          trackedLastWeek,
+        },
+      })
     }
     
     return NextResponse.json({ matches })
