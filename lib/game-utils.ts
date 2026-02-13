@@ -1,6 +1,20 @@
 /**
  * Utility functions for League of Legends game data
  */
+import championData from "@/data/champion.json"
+
+type ChampionJsonEntry = {
+  key: string
+  id: string
+  name: string
+}
+
+const championIdToNameMap: Map<number, string> = new Map(
+  Object.values(championData.data as Record<string, ChampionJsonEntry>).map((champion) => [
+    Number(champion.key),
+    champion.id,
+  ]),
+)
 
 /**
  * Get the display color for a position (text color)
@@ -187,7 +201,7 @@ export function getChampionImageUrl(championName: string): string {
   }
   
   // Use CDN instead of local assets
-  return `https://ddragon.leagueoflegends.com/cdn/14.23.1/img/champion/${formattedName}.png`
+  return `https://ddragon.leagueoflegends.com/cdn/16.3.1/img/champion/${formattedName}.png`
 }
 
 /**
@@ -196,7 +210,7 @@ export function getChampionImageUrl(championName: string): string {
 export function getItemImageUrl(itemId: number | string): string {
   if (!itemId || itemId === 0) return '/placeholder.svg?height=32&width=32&text=Item'
   
-  return `https://ddragon.leagueoflegends.com/cdn/14.23.1/img/item/${itemId}.png`
+  return `https://ddragon.leagueoflegends.com/cdn/16.3.1/img/item/${itemId}.png`
 }
 
 /**
@@ -229,4 +243,12 @@ export function getKDAColor(kda: number): string {
   if (kda >= 2) return 'text-green-400'
   if (kda >= 1.5) return 'text-yellow-400'
   return 'text-red-400'
+}
+
+/**
+ * Resolve champion internal ID to Data Dragon champion ID string.
+ */
+export function getChampionNameById(championId: number): string | null {
+  if (!Number.isFinite(championId) || championId <= 0) return null
+  return championIdToNameMap.get(championId) ?? null
 }

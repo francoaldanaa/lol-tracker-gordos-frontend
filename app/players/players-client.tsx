@@ -1,10 +1,10 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import Image from "next/image"
+import CircleSummonerAvatar from "@/components/circle-summoner-avatar"
 import { getChampionImageUrl, getPositionBgColor, getPositionDisplay, formatNumber, calculateKDA } from "@/lib/game-utils"
 
 interface PlayerStats {
@@ -58,9 +58,9 @@ export default function PlayersClient() {
   return (
     <div className="page-wrap space-y-6">
       <section className="glass-shell p-6">
-        <p className="glass-chip mb-4">Roster</p>
+        <p className="glass-chip mb-4">Plantilla</p>
         <h1 className="title-gradient text-4xl font-semibold">Jugadores de Gordos</h1>
-        <p className="mt-2 text-sm text-slate-200/80">Estadísticas de los últimos 14 días. Click en cualquier jugador para abrir su perfil.</p>
+        <p className="mt-2 text-sm text-slate-200/80">Estadísticas de los últimos 14 días. Haz click en cualquier jugador para abrir su perfil.</p>
       </section>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -75,17 +75,11 @@ export default function PlayersClient() {
             >
               <CardContent className="p-4">
                 <div className="mb-3 flex items-center gap-3">
-                  <div className="h-12 w-12 overflow-hidden rounded-full border border-white/20 bg-black/20">
-                    {player.mostPlayedChampion ? (
-                      <Image
-                        src={getChampionImageUrl(player.mostPlayedChampion)}
-                        alt={player.mostPlayedChampion}
-                        width={48}
-                        height={48}
-                        className="block h-full w-full scale-110 object-cover"
-                      />
-                    ) : null}
-                  </div>
+                  <CircleSummonerAvatar
+                    src={player.mostPlayedChampion ? getChampionImageUrl(player.mostPlayedChampion) : null}
+                    alt={player.mostPlayedChampion || "Campeón"}
+                    sizeClassName="h-12 w-12"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-white">{player.summoner_name}</div>
                     {player.mainRole ? (
@@ -94,7 +88,7 @@ export default function PlayersClient() {
                       </Badge>
                     ) : null}
                   </div>
-                  {isLeader ? <span className="glass-chip border-emerald-300/45 bg-emerald-300/20 text-emerald-100">Top WR</span> : null}
+                  {isLeader ? <span className="glass-chip border-emerald-300/45 bg-emerald-300/20 text-emerald-100">Top Winrate</span> : null}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -111,7 +105,7 @@ export default function PlayersClient() {
                 </div>
 
                 <div className="mt-2 glass-card p-2 text-sm">
-                  <div className="mb-1 text-[11px] uppercase tracking-[0.08em] text-slate-300/70">KDA Promedio</div>
+                  <div className="mb-1 text-[11px] uppercase tracking-[0.08em] text-slate-300/70">K/D/A promedio</div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-100">
                       {formatNumber(player.averageKDA.kills)}/{formatNumber(player.averageKDA.deaths)}/{formatNumber(player.averageKDA.assists)}
@@ -127,3 +121,4 @@ export default function PlayersClient() {
     </div>
   )
 }
+

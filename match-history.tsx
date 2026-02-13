@@ -18,6 +18,10 @@ export default function Component() {
   const router = useRouter()
   const [selectedStat, setSelectedStat] = useState("damage")
 
+  const goToMatchDetails = (matchId: string) => {
+    router.push(`/match-details/${matchId}`)
+  }
+
   const handleRowClick = (player: MatchPlayer, matchId: string) => {
     if (!player.summoner_name) return
     sessionStorage.setItem("highlightedSummonerName", player.summoner_name)
@@ -49,7 +53,7 @@ export default function Component() {
   return (
     <div className="page-wrap space-y-6">
       <section className="glass-shell p-6">
-        <h1 className="title-gradient text-4xl font-semibold">Ultimas partidas de Gordos</h1>
+        <h1 className="title-gradient text-4xl font-semibold">Últimas partidas de Gordos</h1>
         <div className="mt-4 flex flex-wrap gap-3 text-sm">
           <span className="glass-chip">Ultima semana: {trackedLastWeek} partidas</span>
         </div>
@@ -61,7 +65,18 @@ export default function Component() {
           const isWin = getTrackedResult(match.players, winningTeamId)
 
           return (
-            <Card key={match.match_id} className="glass-shell border-white/15 bg-white/[0.05]">
+            <Card
+              key={match.match_id}
+              className="glass-shell cursor-pointer border-white/15 bg-white/[0.05] transition-all duration-200 hover:ring-1 hover:ring-cyan-300/40"
+              onClick={() => goToMatchDetails(match.match_id)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return
+                event.preventDefault()
+                goToMatchDetails(match.match_id)
+              }}
+              role="button"
+              tabIndex={0}
+            >
               <CardHeader className="pb-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">

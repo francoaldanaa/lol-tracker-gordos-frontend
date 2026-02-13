@@ -38,6 +38,7 @@ interface MatchPlayer {
   team_id: number
   profile_icon: number
   objectives_stolen: number
+  objectivesStolen?: number
   item_0: number
   item_1: number
   item_2: number
@@ -70,6 +71,13 @@ interface MatchPlayer {
   vision_cleared_pings: number
   wards_killed: number
   wards_placed: number
+  wardsPlaced?: number
+  visionScore?: number
+  totalMinionsKilled?: number
+  neutral_minions_killed?: number
+  neutralMinionsKilled?: number
+  control_wards_placed?: number
+  controlWardsPlaced?: number
   game_ended_in_early_surrender: boolean
   game_ended_in_surrender: boolean
 }
@@ -85,8 +93,14 @@ interface TeamObjective {
   dragon_kills: number
   inhibitor_first: boolean
   inhibitor_kills: number
-  rift_herald_first: boolean
-  rift_herald_kills: number
+  rift_herald_first?: boolean
+  rift_herald_kills?: number
+  riftHerald_first?: boolean
+  riftHerald_kills?: number
+  void_monster_kill?: number
+  voidgrub_kills?: number
+  voidgrubs_kills?: number
+  horde_kills?: number
   tower_first: boolean
   tower_kills: number
 }
@@ -95,7 +109,7 @@ interface Team {
   teamId: number
   win: boolean
   objectives: TeamObjective
-  bans: Array<{ champion_id: number }>
+  bans: Array<{ champion_id?: number; championId?: number; pickTurn?: number }>
 }
 
 interface Match {
@@ -389,6 +403,16 @@ class MongoDBService {
     average_vision_score: number
     average_wards_placed: number
     average_wards_killed: number
+    average_pings: number
+    average_danger_pings: number
+    average_on_my_way_pings: number
+    average_need_vision_pings: number
+    average_push_pings: number
+    average_all_in_pings: number
+    average_assist_me_pings: number
+    average_enemy_missing_pings: number
+    average_enemy_vision_pings: number
+    average_hold_pings: number
     most_played_champions: Array<{ champion: string; games: number }>
     most_played_positions: Array<{ position: string; games: number }>
     teammates_stats: Array<{
@@ -453,12 +477,46 @@ class MongoDBService {
           gold_earned: acc.gold_earned + player.gold_earned,
           vision_score: acc.vision_score + player.vision_score,
           wards_placed: acc.wards_placed + player.wards_placed,
-          wards_killed: acc.wards_killed + player.wards_killed
+          wards_killed: acc.wards_killed + player.wards_killed,
+          total_pings: acc.total_pings +
+            player.all_in_pings +
+            player.assist_me_pings +
+            player.basic_pings +
+            player.command_pings +
+            player.danger_pings +
+            player.enemy_missing_pings +
+            player.enemy_vision_pings +
+            player.get_back_pings +
+            player.hold_pings +
+            player.need_vision_pings +
+            player.on_my_way_pings +
+            player.push_pings +
+            player.retreat_pings +
+            player.vision_cleared_pings,
+          danger_pings: acc.danger_pings + player.danger_pings,
+          on_my_way_pings: acc.on_my_way_pings + player.on_my_way_pings,
+          need_vision_pings: acc.need_vision_pings + player.need_vision_pings,
+          push_pings: acc.push_pings + player.push_pings,
+          all_in_pings: acc.all_in_pings + player.all_in_pings,
+          assist_me_pings: acc.assist_me_pings + player.assist_me_pings,
+          enemy_missing_pings: acc.enemy_missing_pings + player.enemy_missing_pings,
+          enemy_vision_pings: acc.enemy_vision_pings + player.enemy_vision_pings,
+          hold_pings: acc.hold_pings + player.hold_pings,
         }
       }, {
         kills: 0, deaths: 0, assists: 0, mvp_score: 0,
         damage_dealt: 0, damage_to_champions: 0, gold_earned: 0,
-        vision_score: 0, wards_placed: 0, wards_killed: 0
+        vision_score: 0, wards_placed: 0, wards_killed: 0,
+        total_pings: 0,
+        danger_pings: 0,
+        on_my_way_pings: 0,
+        need_vision_pings: 0,
+        push_pings: 0,
+        all_in_pings: 0,
+        assist_me_pings: 0,
+        enemy_missing_pings: 0,
+        enemy_vision_pings: 0,
+        hold_pings: 0,
       })
 
       // Calculate most played champions and positions
@@ -582,6 +640,16 @@ class MongoDBService {
         average_vision_score: averages.vision_score / totalMatches,
         average_wards_placed: averages.wards_placed / totalMatches,
         average_wards_killed: averages.wards_killed / totalMatches,
+        average_pings: averages.total_pings / totalMatches,
+        average_danger_pings: averages.danger_pings / totalMatches,
+        average_on_my_way_pings: averages.on_my_way_pings / totalMatches,
+        average_need_vision_pings: averages.need_vision_pings / totalMatches,
+        average_push_pings: averages.push_pings / totalMatches,
+        average_all_in_pings: averages.all_in_pings / totalMatches,
+        average_assist_me_pings: averages.assist_me_pings / totalMatches,
+        average_enemy_missing_pings: averages.enemy_missing_pings / totalMatches,
+        average_enemy_vision_pings: averages.enemy_vision_pings / totalMatches,
+        average_hold_pings: averages.hold_pings / totalMatches,
         most_played_champions: mostPlayedChampions,
         most_played_positions: mostPlayedPositions,
         teammates_stats: teammatesStatsArray,

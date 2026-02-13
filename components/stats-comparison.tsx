@@ -1,7 +1,7 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MatchPlayer } from "@/lib/mongodb"
 import { getChampionImageUrl } from "@/lib/game-utils"
@@ -99,7 +99,7 @@ export default function StatsComparison({
     { value: "damage", label: "Daño a campeones" },
     { value: "healing", label: "Curación total" },
     { value: "tiempo_muerto", label: "Tiempo muerto" },
-    { value: "minions", label: "Minions eliminados" },
+    { value: "minions", label: "Súbditos eliminados" },
     { value: "cc", label: "CC" },
     { value: "vision", label: "Visión" },
     { value: "pings", label: "Pings" },
@@ -108,8 +108,7 @@ export default function StatsComparison({
   return (
     <Card className="glass-card border-white/15 bg-white/[0.04]">
       <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="text-white">Comparación de stats</CardTitle>
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <Select value={currentStat} onValueChange={handleStatChange}>
             <SelectTrigger className="w-52 border-white/20 bg-black/20 text-white">
               <SelectValue />
@@ -165,3 +164,4 @@ export default function StatsComparison({
     </Card>
   )
 }
+

@@ -1,9 +1,10 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import CircleSummonerAvatar from "@/components/circle-summoner-avatar"
 import { calculateKDA, formatDamage, formatGold, formatNumber, getChampionImageUrl, getItemImageUrl, getPositionDisplay } from "@/lib/game-utils"
 
 interface PlayerProfile {
@@ -26,7 +27,13 @@ interface PlayerProfile {
   average_pings?: number
   average_danger_pings?: number
   average_on_my_way_pings?: number
+  average_need_vision_pings?: number
+  average_push_pings?: number
+  average_all_in_pings?: number
+  average_assist_me_pings?: number
   average_enemy_missing_pings?: number
+  average_enemy_vision_pings?: number
+  average_hold_pings?: number
   most_played_champions: Array<{
     champion: string
     games: number
@@ -87,6 +94,15 @@ export default function ProfileClient() {
     }
   }, [profile])
 
+  const visiblePositions = useMemo(() => {
+    if (!profile) return []
+    return profile.most_played_positions.filter((position) => {
+      const raw = (position.position || "").trim().toUpperCase()
+      if (!raw || raw === "UNKNOWN" || raw === "UNSELECTED") return false
+      return getPositionDisplay(position.position) !== "UNKNOWN"
+    })
+  }, [profile])
+
   const openMatch = (matchId: string, summonerName: string) => {
     sessionStorage.setItem("highlightedSummonerName", summonerName)
     router.push(`/match-details/${matchId}`)
@@ -128,13 +144,13 @@ export default function ProfileClient() {
   return (
     <div className="page-wrap space-y-6">
       <section className="glass-shell p-6">
-        <p className="glass-chip mb-4">Player Profile</p>
+        <p className="glass-chip mb-4">Perfil</p>
         <h1 className="title-gradient text-4xl font-semibold">{profile.summoner_name}</h1>
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
           <div className="glass-card p-3 text-center"><div className="text-xs text-slate-300/70">Partidas</div><div className="text-2xl font-semibold">{profile.total_matches}</div></div>
           <div className="glass-card p-3 text-center"><div className="text-xs text-slate-300/70">Winrate</div><div className="text-2xl font-semibold text-cyan-100">{formatNumber(profile.win_rate)}%</div></div>
-          <div className="glass-card p-3 text-center"><div className="text-xs text-slate-300/70">KDA</div><div className="text-2xl font-semibold text-emerald-100">{formatNumber(overview.kda, 2)}</div></div>
-          <div className="glass-card p-3 text-center"><div className="text-xs text-slate-300/70">MVP score</div><div className="text-2xl font-semibold text-amber-100">{formatNumber(profile.average_mvp_score)}</div></div>
+          <div className="glass-card p-3 text-center"><div className="text-xs text-slate-300/70">K / D / A</div><div className="text-2xl font-semibold text-emerald-100">{formatNumber(overview.kda, 2)}</div></div>
+          <div className="glass-card p-3 text-center"><div className="text-xs text-slate-300/70">Puntaje MVP</div><div className="text-2xl font-semibold text-amber-100">{formatNumber(profile.average_mvp_score)}</div></div>
           <div className="glass-card p-3 text-center"><div className="text-xs text-slate-300/70">MVP recientes</div><div className="text-2xl font-semibold text-orange-100">{overview.mvpGames}</div></div>
         </div>
       </section>
@@ -159,8 +175,15 @@ export default function ProfileClient() {
                 <div className="flex justify-between"><span>Wards puestas</span><span>{formatNumber(profile.average_wards_placed)}</span></div>
                 <div className="flex justify-between"><span>Wards destruidas</span><span>{formatNumber(profile.average_wards_killed)}</span></div>
                 <div className="flex justify-between"><span>Pings totales</span><span>{formatNumber(profile.average_pings || 0)}</span></div>
-                <div className="flex justify-between"><span>Pings danger</span><span>{formatNumber(profile.average_danger_pings || 0)}</span></div>
-                <div className="flex justify-between"><span>On my way</span><span>{formatNumber(profile.average_on_my_way_pings || 0)}</span></div>
+                <div className="flex justify-between"><span>Peligro</span><span>{formatNumber(profile.average_danger_pings || 0)}</span></div>
+                <div className="flex justify-between"><span>En camino</span><span>{formatNumber(profile.average_on_my_way_pings || 0)}</span></div>
+                <div className="flex justify-between"><span>Necesito visión</span><span>{formatNumber(profile.average_need_vision_pings || 0)}</span></div>
+                <div className="flex justify-between"><span>Empujar</span><span>{formatNumber(profile.average_push_pings || 0)}</span></div>
+                <div className="flex justify-between"><span>Todo o nada</span><span>{formatNumber(profile.average_all_in_pings || 0)}</span></div>
+                <div className="flex justify-between"><span>Ayúdame</span><span>{formatNumber(profile.average_assist_me_pings || 0)}</span></div>
+                <div className="flex justify-between"><span>Enemigo desaparecido</span><span>{formatNumber(profile.average_enemy_missing_pings || 0)}</span></div>
+                <div className="flex justify-between"><span>Visión enemiga</span><span>{formatNumber(profile.average_enemy_vision_pings || 0)}</span></div>
+                <div className="flex justify-between"><span>Mantener</span><span>{formatNumber(profile.average_hold_pings || 0)}</span></div>
               </div>
             </div>
           </CardContent>
@@ -169,12 +192,15 @@ export default function ProfileClient() {
         <Card className="glass-shell border-white/15 bg-white/[0.05]">
           <CardHeader><CardTitle className="text-white">Posiciones</CardTitle></CardHeader>
           <CardContent className="space-y-2">
-            {profile.most_played_positions.map((position) => (
+            {visiblePositions.map((position) => (
               <div key={position.position} className="glass-card flex items-center justify-between p-2 text-sm">
                 <span>{getPositionDisplay(position.position)}</span>
                 <Badge variant="outline" className="border-white/20 bg-white/10 text-slate-100">{position.games}</Badge>
               </div>
             ))}
+            {visiblePositions.length === 0 ? (
+              <div className="glass-card p-2 text-sm text-slate-300/80">Sin posiciones registradas</div>
+            ) : null}
           </CardContent>
         </Card>
       </section>
@@ -186,13 +212,11 @@ export default function ProfileClient() {
             {profile.most_played_champions.map((champion) => (
               <div key={champion.champion} className="glass-card flex items-center justify-between p-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 overflow-hidden rounded-full border border-white/20 bg-black/20">
-                    <img
-                      src={getChampionImageUrl(champion.champion)}
-                      alt={champion.champion}
-                      className="block h-full w-full scale-110 object-cover"
-                    />
-                  </div>
+                  <CircleSummonerAvatar
+                    src={getChampionImageUrl(champion.champion)}
+                    alt={champion.champion}
+                    sizeClassName="h-10 w-10"
+                  />
                   <div>
                     <div className="text-sm font-semibold text-white">{champion.champion}</div>
                     <div className="text-xs text-slate-300/70">{champion.games} partidas</div>
@@ -235,11 +259,11 @@ export default function ProfileClient() {
                     <div className="font-semibold text-white">{teammate.games_played}</div>
                   </div>
                   <div className="rounded-lg bg-emerald-400/10 p-2 text-center">
-                    <div className="text-emerald-100/80">Wins</div>
+                    <div className="text-emerald-100/80">Victorias</div>
                     <div className="font-semibold text-emerald-100">{teammate.wins}</div>
                   </div>
                   <div className="rounded-lg bg-rose-400/10 p-2 text-center">
-                    <div className="text-rose-100/80">Losses</div>
+                    <div className="text-rose-100/80">Derrotas</div>
                     <div className="font-semibold text-rose-100">{teammate.losses}</div>
                   </div>
                 </div>
@@ -278,18 +302,14 @@ export default function ProfileClient() {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <div className="h-9 w-9 overflow-hidden rounded-full border border-white/20 bg-black/20">
-                      {playerData?.champion_name ? (
-                        <img
-                          src={getChampionImageUrl(playerData.champion_name)}
-                          alt={playerData.champion_name}
-                          className="block h-full w-full scale-110 object-cover"
-                        />
-                      ) : null}
-                    </div>
+                    <CircleSummonerAvatar
+                      src={playerData?.champion_name ? getChampionImageUrl(playerData.champion_name) : null}
+                      alt={playerData?.champion_name || "Campeón"}
+                      sizeClassName="h-9 w-9"
+                    />
                     <div>
                       <div className="text-sm font-semibold text-white">{playerData?.champion_name || "-"}</div>
-                      <div className="text-xs text-slate-300/70">KDA {kda}</div>
+                      <div className="text-xs text-slate-300/70">K/D/A {kda}</div>
                     </div>
                   </div>
                 </div>
