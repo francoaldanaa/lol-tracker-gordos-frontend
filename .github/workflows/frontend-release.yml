@@ -2,29 +2,45 @@ name: Frontend Release
 
 on:
   push:
-    branches:
-      - main
+    branches: ["main"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
 
 jobs:
   release:
-    name: Deploy frontend on [release] commit
+    name: Release / Deploy
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check if commit message starts with [release]
-      id: check
-      run: |
-        set -e
-        MSG="${{ github.event.head_commit.message }}"
-        echo "Commit message: $MSG"
-        if [[ "$MSG" == \[release\]* ]]; then
-          echo "should_deploy=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-        fi
+      - name: Debug — print trigger context
+        shell: bash
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "sha=${{ github.sha }}"
+          echo "head_commit_message=${{ github.event.head_commit.message }}"
+
+      - name: Decide if this is a [release] commit
+        id: gate
+        shell: bash
+        run: |
+          set -e
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          MSG="${{ github.event.head_commit.message }}"
+          if [[ "$MSG" == \[release\]* ]]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Deploy via SSH (runs release script on droplet)
-        if: steps.check.outputs.should_deploy == 'true'
+        if: steps.gate.outputs.should_deploy == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DO_HOST }}
@@ -35,12 +51,14 @@ jobs:
           script: |
             set -e
             COMMIT_SHA="${{ github.sha }}"
-            # Preserve multiline commit messages safely
             COMMIT_MSG=$(cat <<'EOF'
             ${{ github.event.head_commit.message }}
             EOF
             )
             export COMMIT_SHA
             export COMMIT_MSG
-
             bash /opt/lol-tracker/lol-tracker-gordos-frontend/frontend-release.sh
+
+      - name: Skipped (not a [release] commit)
+        if: steps.gate.outputs.should_deploy != 'true'
+        run: echo "Not a [release] commit — deploy skipped."
