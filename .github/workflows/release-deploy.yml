@@ -1,0 +1,27 @@
+name: Release Deploy (Droplet)
+
+on:
+  push:
+    branches: [ "main" ]
+
+concurrency:
+  group: release-deploy-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: startsWith(github.event.head_commit.message, '[release]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          port: ${{ secrets.DROPLET_PORT || 22 }}
+          script: |
+            set -e
+            COMMIT_SHA="${{ github.sha }}" \
+            COMMIT_MSG="${{ github.event.head_commit.message }}" \
+            /opt/lol-tracker/lol-tracker-gordos-frontend/deploy-release.sh
