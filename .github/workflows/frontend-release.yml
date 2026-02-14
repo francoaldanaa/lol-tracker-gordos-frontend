@@ -42,6 +42,9 @@ jobs:
       - name: Deploy via SSH (runs release script on droplet)
         if: steps.gate.outputs.should_deploy == 'true'
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
@@ -49,14 +52,16 @@ jobs:
           port: ${{ secrets.DROPLET_PORT }}
           script_stop: true
           script: |
-            set -e
-            COMMIT_SHA="${{ github.sha }}"
-            COMMIT_MSG=$(cat <<'EOF'
-            ${{ github.event.head_commit.message }}
-            EOF
-            )
-            export COMMIT_SHA
-            export COMMIT_MSG
+            set -euo pipefail
+
+            # COMMIT_SHA and COMMIT_MSG arrive as env vars.
+            # Encode COMMIT_MSG safely to avoid any shell parsing issues.
+            export COMMIT_SHA="${COMMIT_SHA}"
+            export COMMIT_MSG_B64="$(printf "%s" "${COMMIT_MSG}" | base64 -w0)"
+
+            # Decode back into COMMIT_MSG on the droplet
+            export COMMIT_MSG="$(printf "%s" "${COMMIT_MSG_B64}" | base64 -d)"
+
             bash /opt/lol-tracker/lol-tracker-gordos-frontend/frontend-release.sh
 
       - name: Skipped (not a [release] commit)
