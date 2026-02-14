@@ -18,11 +18,9 @@ PM2_NAME="lol-tracker-frontend"
 WRONG_PM2_NAME="lol-tracker-gordos-frontend"
 
 # Environment files
-RUNTIME_ENV_FILE="/etc/lol-tracker-frontend.env"
-BUILD_ENV_FILE="/etc/lol-tracker-frontend.build.env"
+BUILD_ENV_FILE="/etc/gordos-tracker-frontend.env"
 
 # Mongo logging
-MONGO_AUTH_SOURCE="${MONGO_AUTH_SOURCE:-admin}"
 MONGO_COLLECTION="frontend_releases_logs"
 
 #############################################
@@ -69,11 +67,11 @@ log_mongo() {
   local meta="${1:-{}}"
 
   if ! command -v mongosh >/dev/null 2>&1; then return 0; fi
-  if [[ -z "${MONGO_HOST:-}" || -z "${MONGO_PORT:-}" || -z "${MONGODB_USERNAME:-}" || -z "${MONGODB_PASSWORD:-}" || -z "${MONGODB_DATABASE:-}" ]]; then
+  if [[ -z "${MONGO_HOST:-}" || -z "${MONGO_PORT:-}" || -z "${MONGO_USERNAME:-}" || -z "${MONGO_PASSWORD:-}" || -z "${MONGO_DATABASE:-}" ]]; then
     return 0
   fi
 
-  local uri="mongodb://${MONGODB_USERNAME}:${MONGODB_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}/${MONGODB_DATABASE}?authSource=${MONGO_AUTH_SOURCE}"
+  local uri="mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}/${MONGO_DATABASE}?authSource=${MONGO_DATABASE}"
   local ts; ts="$(now_iso)"
 
   local commit_msg="${COMMIT_MSG:-}"
@@ -88,7 +86,7 @@ log_mongo() {
   esc_cmsg="$(printf "%s" "$commit_msg" | json_escape)"
 
   mongosh "$uri" --quiet --eval "
-    const dbname = '${MONGODB_DATABASE}';
+    const dbname = '${MONGO_DATABASE}';
     const col = '${MONGO_COLLECTION}';
     const doc = {
       timestamp: new Date('${ts}'),
@@ -189,14 +187,6 @@ CORRELATION_ID="$(make_correlation_id)"
 log_local "INFO" "New release commit received: sha=${COMMIT_SHA:-unknown} msg=${COMMIT_MSG:-unknown}"
 log_mongo "info" "hook" "New commit received" "{\"sha\":\"${COMMIT_SHA:-}\",\"msg\":\"${COMMIT_MSG:-}\"}"
 
-# Load runtime env (may include mongo vars)
-if [[ -f "$RUNTIME_ENV_FILE" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$RUNTIME_ENV_FILE"
-  set +a
-fi
-
 ensure_lock_dir
 cancel_previous_if_running
 acquire_lock_or_exit
@@ -243,4 +233,30 @@ run_step "5/7" "pm2_restart" bash -lc "
     pm2 delete '$WRONG_PM2_NAME'
   fi
 
-  if pm2 describe '$PM2_NAME' >/dev/null 2>&1; th_
+  if pm2 describe '$PM2_NAME' >/dev/null 2>&1; then
+    pm2 restart '$PM2_NAME'
+  else
+    echo 'Expected PM2 process not found: $PM2_NAME'
+    echo 'Refusing to create a new PM2 process automatically to avoid name drift.'
+    exit 1
+  fi
+"
+
+# Step [6/7] Save PM2 state
+run_step "6/7" "pm2_save" bash -lc "pm2 save"
+
+# Step [7/7] Validation
+run_step "7/7" "validate" bash -lc "
+  set -e
+  for i in {1..30}; do
+    if curl -fsS -I '$LOCAL_HEALTHCHECK_URL' >/dev/null 2>&1; then
+      exit 0
+    fi
+    sleep 1
+  done
+  echo 'Healthcheck failed'
+  exit 1
+"
+
+log_local "INFO" "✅ Release finished successfully."
+log_mongo "info" "done" "Release finished successfully" "{}"
