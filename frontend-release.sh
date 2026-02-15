@@ -21,7 +21,8 @@ WRONG_PM2_NAME="lol-tracker-gordos-frontend"
 BUILD_ENV_FILE="/etc/gordos-tracker-frontend.env"
 
 # Mongo logging
-MONGO_COLLECTION="${MONGO_COLLECTION:-frontend_releases_logs}"
+# Default target: <MONGO_DATABASE>.frontend_logs
+MONGO_COLLECTION="${MONGO_COLLECTION:-frontend_logs}"
 
 #############################################
 # INTERNAL PATHS
