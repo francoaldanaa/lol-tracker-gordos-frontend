@@ -21,7 +21,7 @@ WRONG_PM2_NAME="lol-tracker-gordos-frontend"
 BUILD_ENV_FILE="/etc/gordos-tracker-frontend.env"
 
 # Mongo logging
-MONGO_COLLECTION="frontend_releases_logs"
+MONGO_COLLECTION="${MONGO_COLLECTION:-frontend_releases_logs}"
 
 #############################################
 # INTERNAL PATHS
@@ -39,6 +39,9 @@ LOCAL_LOG_FILE="$LOCAL_LOG_DIR/frontend-release.log"
 #############################################
 
 now_iso() { date -Is; }
+MONGO_WARNED_MONGOSH=0
+MONGO_WARNED_ENV=0
+MONGO_WARNED_INSERT=0
 
 make_correlation_id() {
   local sha="${COMMIT_SHA:-manual}"
@@ -57,7 +60,7 @@ log_local() {
   local level="$1"; shift
   local msg="$*"
   mkdir -p "$LOCAL_LOG_DIR"
-  echo "$(now_iso) [$level] correlation_id=$CORRELATION_ID commit_sha=${COMMIT_SHA:-} msg=$(printf "%s" "$msg")" | tee -a "$LOCAL_LOG_FILE"
+  echo "$(now_iso) [$level] correlation_id=${CORRELATION_ID:-n/a} commit_sha=${COMMIT_SHA:-} msg=$(printf "%s" "$msg")" | tee -a "$LOCAL_LOG_FILE"
 }
 
 log_mongo() {
@@ -65,13 +68,24 @@ log_mongo() {
   local step="$1"; shift
   local message="$1"; shift
   local meta="${1:-{}}"
+  local auth_source
+  auth_source="${MONGO_AUTH_SOURCE:-${MONGO_DATABASE:-}}"
 
-  if ! command -v mongosh >/dev/null 2>&1; then return 0; fi
+  if ! command -v mongosh >/dev/null 2>&1; then
+    if [[ "$MONGO_WARNED_MONGOSH" -eq 0 ]]; then
+      log_local "WARN" "Mongo logging skipped: mongosh not installed"
+      MONGO_WARNED_MONGOSH=1
+    fi
+    return 0
+  fi
   if [[ -z "${MONGO_HOST:-}" || -z "${MONGO_PORT:-}" || -z "${MONGO_USERNAME:-}" || -z "${MONGO_PASSWORD:-}" || -z "${MONGO_DATABASE:-}" ]]; then
+    if [[ "$MONGO_WARNED_ENV" -eq 0 ]]; then
+      log_local "WARN" "Mongo logging skipped: missing one or more vars (MONGO_HOST/MONGO_PORT/MONGO_USERNAME/MONGO_PASSWORD/MONGO_DATABASE)"
+      MONGO_WARNED_ENV=1
+    fi
     return 0
   fi
 
-  local uri="mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}/${MONGO_DATABASE}?authSource=${MONGO_DATABASE}"
   local ts; ts="$(now_iso)"
 
   local commit_msg="${COMMIT_MSG:-}"
@@ -85,7 +99,15 @@ log_mongo() {
   esc_sha="$(printf "%s" "$commit_sha" | json_escape)"
   esc_cmsg="$(printf "%s" "$commit_msg" | json_escape)"
 
-  mongosh "$uri" --quiet --eval "
+  local mongo_out
+  if ! mongo_out="$(mongosh \
+    --host "$MONGO_HOST" \
+    --port "$MONGO_PORT" \
+    --username "$MONGO_USERNAME" \
+    --password "$MONGO_PASSWORD" \
+    --authenticationDatabase "$auth_source" \
+    "$MONGO_DATABASE" \
+    --quiet --eval "
     const dbname = '${MONGO_DATABASE}';
     const col = '${MONGO_COLLECTION}';
     const doc = {
@@ -99,7 +121,13 @@ log_mongo() {
       meta: ${meta}
     };
     db.getSiblingDB(dbname).getCollection(col).insertOne(doc);
-  " >/dev/null 2>&1 || true
+  " 2>&1)"; then
+    if [[ "$MONGO_WARNED_INSERT" -eq 0 ]]; then
+      log_local "WARN" "Mongo insert failed db=${MONGO_DATABASE} col=${MONGO_COLLECTION} authSource=${auth_source} host=${MONGO_HOST}:${MONGO_PORT} error=$(printf "%s" "$mongo_out")"
+      MONGO_WARNED_INSERT=1
+    fi
+    return 0
+  fi
 }
 
 fail() {
@@ -254,6 +282,7 @@ fi
 CORRELATION_ID="$(make_correlation_id)"
 
 log_local "INFO" "New release commit received: sha=${COMMIT_SHA:-unknown} msg=${COMMIT_MSG:-unknown}"
+log_local "INFO" "Mongo target: host=${MONGO_HOST:-unset}:${MONGO_PORT:-unset} db=${MONGO_DATABASE:-unset} col=${MONGO_COLLECTION} authSource=${MONGO_AUTH_SOURCE:-${MONGO_DATABASE:-unset}}"
 log_mongo "info" "hook" "New commit received" "{\"sha\":\"${COMMIT_SHA:-}\",\"msg\":\"${COMMIT_MSG:-}\"}"
 
 ensure_lock_dir
