@@ -92,13 +92,15 @@ log_mongo() {
   local commit_msg="${COMMIT_MSG:-}"
   local commit_sha="${COMMIT_SHA:-}"
 
-  local esc_message esc_step esc_level esc_corr esc_sha esc_cmsg
+  local esc_message esc_step esc_level esc_corr esc_sha esc_cmsg esc_meta_json esc_meta_raw
   esc_message="$(printf "%s" "$message" | json_escape)"
   esc_step="$(printf "%s" "$step" | json_escape)"
   esc_level="$(printf "%s" "$level" | json_escape)"
   esc_corr="$(printf "%s" "$CORRELATION_ID" | json_escape)"
   esc_sha="$(printf "%s" "$commit_sha" | json_escape)"
   esc_cmsg="$(printf "%s" "$commit_msg" | json_escape)"
+  esc_meta_json="$(printf "%s" "$meta" | json_escape)"
+  esc_meta_raw="$(printf "%s" "$meta" | json_escape)"
 
   local mongo_out
   if ! mongo_out="$(mongosh \
@@ -111,6 +113,12 @@ log_mongo() {
     --quiet --eval "
     const dbname = '${MONGO_DATABASE}';
     const col = '${MONGO_COLLECTION}';
+    let metaValue = {};
+    try {
+      metaValue = JSON.parse(\"${esc_meta_json}\");
+    } catch (e) {
+      metaValue = { _meta_parse_error: String(e), _raw_meta: \"${esc_meta_raw}\" };
+    }
     const doc = {
       timestamp: new Date('${ts}'),
       correlation_id: \"${esc_corr}\",
@@ -119,7 +127,7 @@ log_mongo() {
       level: \"${esc_level}\",
       step: \"${esc_step}\",
       message: \"${esc_message}\",
-      meta: ${meta}
+      meta: metaValue
     };
     db.getSiblingDB(dbname).getCollection(col).insertOne(doc);
   " 2>&1)"; then
