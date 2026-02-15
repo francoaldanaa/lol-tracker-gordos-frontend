@@ -176,6 +176,31 @@ cleanup() {
 }
 trap cleanup EXIT
 
+resolve_pm2_home() {
+  if [[ -n "${PM2_HOME:-}" && -d "${PM2_HOME}" ]]; then
+    return 0
+  fi
+
+  local current_user current_home
+  current_user="$(id -un)"
+  current_home="${HOME:-}"
+
+  if [[ -z "$current_home" ]]; then
+    if command -v getent >/dev/null 2>&1; then
+      current_home="$(getent passwd "$current_user" | cut -d: -f6 || true)"
+    fi
+  fi
+
+  if [[ -z "$current_home" ]]; then
+    current_home="$(eval echo "~$current_user" 2>/dev/null || true)"
+  fi
+
+  if [[ -n "$current_home" ]]; then
+    export HOME="$current_home"
+    export PM2_HOME="$current_home/.pm2"
+  fi
+}
+
 #############################################
 # MAIN
 #############################################
@@ -237,8 +262,16 @@ run_step "4/7" "build" bash -lc "
   pnpm run build
 "
 
+resolve_pm2_home
+log_local "INFO" "PM2 context resolved: user=$(id -un) HOME=${HOME:-} PM2_HOME=${PM2_HOME:-}"
+
 # ✅ Step [5/7] Restart existing PM2 app (and remove wrong one if present)
 run_step "5/7" "pm2_restart" bash -lc "
+  echo 'PM2 debug:'
+  echo \"  user=\$(id -un)\"
+  echo \"  HOME=\${HOME:-}\"
+  echo \"  PM2_HOME=\${PM2_HOME:-}\"
+
   # If the wrong process exists (created by earlier script), remove it to avoid confusion.
   if pm2 describe '$WRONG_PM2_NAME' >/dev/null 2>&1; then
     pm2 delete '$WRONG_PM2_NAME'
@@ -248,6 +281,8 @@ run_step "5/7" "pm2_restart" bash -lc "
     pm2 restart '$PM2_NAME'
   else
     echo 'Expected PM2 process not found: $PM2_NAME'
+    echo 'Current PM2 process list:'
+    pm2 list || true
     echo 'Refusing to create a new PM2 process automatically to avoid name drift.'
     exit 1
   fi

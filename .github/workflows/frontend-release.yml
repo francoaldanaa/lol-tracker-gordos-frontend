@@ -64,6 +64,7 @@ jobs:
             # Decode back into COMMIT_MSG on the droplet
             export COMMIT_MSG="$(printf "%s" "${COMMIT_MSG_B64}" | base64 -d)"
 
+            echo "remote_user=$(id -un) home=${HOME:-} shell=${SHELL:-}"
             bash /opt/lol-tracker/lol-tracker-gordos-frontend/frontend-release.sh
 
       - name: Skipped (not a [release] commit)
