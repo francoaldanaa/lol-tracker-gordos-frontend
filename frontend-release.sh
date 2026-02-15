@@ -177,27 +177,34 @@ cleanup() {
 trap cleanup EXIT
 
 resolve_pm2_home() {
-  if [[ -n "${PM2_HOME:-}" && -d "${PM2_HOME}" ]]; then
-    return 0
-  fi
-
   local current_user current_home
   current_user="$(id -un)"
-  current_home="${HOME:-}"
+  current_home=""
 
-  if [[ -z "$current_home" ]]; then
-    if command -v getent >/dev/null 2>&1; then
-      current_home="$(getent passwd "$current_user" | cut -d: -f6 || true)"
-    fi
+  if command -v getent >/dev/null 2>&1; then
+    current_home="$(getent passwd "$current_user" | cut -d: -f6 || true)"
   fi
 
   if [[ -z "$current_home" ]]; then
     current_home="$(eval echo "~$current_user" 2>/dev/null || true)"
   fi
 
+  if [[ -z "$current_home" ]]; then
+    current_home="${HOME:-}"
+  fi
+
   if [[ -n "$current_home" ]]; then
     export HOME="$current_home"
     export PM2_HOME="$current_home/.pm2"
+  fi
+}
+
+resolve_runtime_path() {
+  local current_home
+  current_home="${HOME:-}"
+
+  if [[ -n "$current_home" ]]; then
+    export PATH="$current_home/.npm-global/bin:$current_home/.local/bin:$PATH"
   fi
 }
 
@@ -263,7 +270,9 @@ run_step "4/7" "build" bash -lc "
 "
 
 resolve_pm2_home
+resolve_runtime_path
 log_local "INFO" "PM2 context resolved: user=$(id -un) HOME=${HOME:-} PM2_HOME=${PM2_HOME:-}"
+log_local "INFO" "Runtime PATH=$PATH"
 
 # ✅ Step [5/7] Restart existing PM2 app (and remove wrong one if present)
 run_step "5/7" "pm2_restart" bash -lc "
@@ -271,6 +280,14 @@ run_step "5/7" "pm2_restart" bash -lc "
   echo \"  user=\$(id -un)\"
   echo \"  HOME=\${HOME:-}\"
   echo \"  PM2_HOME=\${PM2_HOME:-}\"
+  echo \"  PATH=\${PATH:-}\"
+
+  if ! command -v pm2 >/dev/null 2>&1; then
+    echo 'pm2 binary not found in PATH'
+    exit 1
+  fi
+
+  echo \"  pm2_bin=\$(command -v pm2)\"
 
   # If the wrong process exists (created by earlier script), remove it to avoid confusion.
   if pm2 describe '$WRONG_PM2_NAME' >/dev/null 2>&1; then
