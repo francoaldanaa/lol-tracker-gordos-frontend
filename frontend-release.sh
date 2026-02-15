@@ -208,6 +208,32 @@ resolve_runtime_path() {
   fi
 }
 
+resolve_pm2_bin() {
+  local current_user candidate
+  current_user="$(id -un)"
+
+  if command -v pm2 >/dev/null 2>&1; then
+    PM2_BIN="$(command -v pm2)"
+    export PM2_BIN
+    return 0
+  fi
+
+  for candidate in \
+    "${HOME:-}/.npm-global/bin/pm2" \
+    "/home/$current_user/.npm-global/bin/pm2" \
+    "/usr/local/bin/pm2" \
+    "/usr/bin/pm2"
+  do
+    if [[ -x "$candidate" ]]; then
+      PM2_BIN="$candidate"
+      export PM2_BIN
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 #############################################
 # MAIN
 #############################################
@@ -271,8 +297,12 @@ run_step "4/7" "build" bash -lc "
 
 resolve_pm2_home
 resolve_runtime_path
+if ! resolve_pm2_bin; then
+  fail "pm2_init" "pm2 binary not found. Expected one of: \$HOME/.npm-global/bin/pm2, /usr/local/bin/pm2, /usr/bin/pm2"
+fi
 log_local "INFO" "PM2 context resolved: user=$(id -un) HOME=${HOME:-} PM2_HOME=${PM2_HOME:-}"
 log_local "INFO" "Runtime PATH=$PATH"
+log_local "INFO" "PM2 binary resolved: $PM2_BIN"
 
 # ✅ Step [5/7] Restart existing PM2 app (and remove wrong one if present)
 run_step "5/7" "pm2_restart" bash -lc "
@@ -281,32 +311,31 @@ run_step "5/7" "pm2_restart" bash -lc "
   echo \"  HOME=\${HOME:-}\"
   echo \"  PM2_HOME=\${PM2_HOME:-}\"
   echo \"  PATH=\${PATH:-}\"
+  echo \"  PM2_BIN=$PM2_BIN\"
 
-  if ! command -v pm2 >/dev/null 2>&1; then
-    echo 'pm2 binary not found in PATH'
+  if [[ ! -x '$PM2_BIN' ]]; then
+    echo 'pm2 binary path is not executable: $PM2_BIN'
     exit 1
   fi
 
-  echo \"  pm2_bin=\$(command -v pm2)\"
-
   # If the wrong process exists (created by earlier script), remove it to avoid confusion.
-  if pm2 describe '$WRONG_PM2_NAME' >/dev/null 2>&1; then
-    pm2 delete '$WRONG_PM2_NAME'
+  if '$PM2_BIN' describe '$WRONG_PM2_NAME' >/dev/null 2>&1; then
+    '$PM2_BIN' delete '$WRONG_PM2_NAME'
   fi
 
-  if pm2 describe '$PM2_NAME' >/dev/null 2>&1; then
-    pm2 restart '$PM2_NAME'
+  if '$PM2_BIN' describe '$PM2_NAME' >/dev/null 2>&1; then
+    '$PM2_BIN' restart '$PM2_NAME'
   else
     echo 'Expected PM2 process not found: $PM2_NAME'
     echo 'Current PM2 process list:'
-    pm2 list || true
+    '$PM2_BIN' list || true
     echo 'Refusing to create a new PM2 process automatically to avoid name drift.'
     exit 1
   fi
 "
 
 # Step [6/7] Save PM2 state
-run_step "6/7" "pm2_save" bash -lc "pm2 save"
+run_step "6/7" "pm2_save" bash -lc "'$PM2_BIN' save"
 
 # Step [7/7] Validation
 run_step "7/7" "validate" bash -lc "
