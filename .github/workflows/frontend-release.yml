@@ -50,13 +50,15 @@ jobs:
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           port: ${{ secrets.DROPLET_PORT }}
+          envs: COMMIT_SHA,COMMIT_MSG
           script_stop: true
           script: |
             set -euo pipefail
 
             # COMMIT_SHA and COMMIT_MSG arrive as env vars.
             # Encode COMMIT_MSG safely to avoid any shell parsing issues.
-            export COMMIT_SHA="${COMMIT_SHA}"
+            export COMMIT_SHA="${COMMIT_SHA:-${{ github.sha }}}"
+            export COMMIT_MSG="${COMMIT_MSG:-}"
             export COMMIT_MSG_B64="$(printf "%s" "${COMMIT_MSG}" | base64 -w0)"
 
             # Decode back into COMMIT_MSG on the droplet

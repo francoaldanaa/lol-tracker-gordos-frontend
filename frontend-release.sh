@@ -57,7 +57,7 @@ log_local() {
   local level="$1"; shift
   local msg="$*"
   mkdir -p "$LOCAL_LOG_DIR"
-  echo "$(now_iso) [$level] correlation_id=$CORRELATION_ID commit_sha=${COMMIT_SHA:-} msg=$(printf "%s" "$msg")" | tee -a "$LOCAL_LOG_FILE" >/dev/null
+  echo "$(now_iso) [$level] correlation_id=$CORRELATION_ID commit_sha=${COMMIT_SHA:-} msg=$(printf "%s" "$msg")" | tee -a "$LOCAL_LOG_FILE"
 }
 
 log_mongo() {
@@ -181,6 +181,17 @@ trap cleanup EXIT
 #############################################
 
 cd "$REPO_DIR"
+
+# Ensure these are always defined even if the caller did not export them.
+: "${COMMIT_SHA:=manual}"
+: "${COMMIT_MSG:=manual trigger}"
+
+# Load runtime env early so Mongo logging works for the entire run.
+if [[ -f "$BUILD_ENV_FILE" ]]; then
+  set -a
+  source "$BUILD_ENV_FILE"
+  set +a
+fi
 
 CORRELATION_ID="$(make_correlation_id)"
 
